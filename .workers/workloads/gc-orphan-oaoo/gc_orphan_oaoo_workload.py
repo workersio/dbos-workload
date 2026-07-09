@@ -92,6 +92,7 @@ APP_VERSION = "wio-gc-orphan-oaoo-rung-001"
 CASE_MATRIX: dict[str, tuple[int, str]] = {
     "case-001": (8101, "baseline-full-gc-reuse"),
     "case-002": (8102, "partial-gc-orphan-reuse"),
+    "case-003": (8103, "appdb-batch-partial-failure"),
 }
 
 
@@ -101,6 +102,45 @@ class WorkloadFailure(Exception):
 
 class SetupBlock(Exception):
     pass
+
+
+class InjectedAppDbFault(RuntimeError):
+    """A transient-looking fault injected into the app-db GC batch loop.
+
+    Models "the app-db batched delete failed partway" -- exactly the crash the
+    PR #751 batching design claims to tolerate ("progress is preserved if batch
+    fails"). Only the app-db engine is proxied; the sys-db phase is untouched.
+    """
+
+
+class AppDbBeginFaultEngine:
+    """Proxy for `dbos._app_db.engine` that raises on the Nth `.begin()`.
+
+    The app-db GC loop (dbos/_app_db.py) is `while True: with
+    self.engine.begin() as c: ... delete one batch ...`. Letting the first
+    `begin()` succeed (batch 1 commits) and raising on the second models an app-
+    db connection drop *after* one batch committed but *before* the batch
+    holding the target row -- orphaning the target's transaction_outputs while
+    its workflow_status was already deleted by the completed sys-db phase.
+    """
+
+    def __init__(self, real: Any, fail_on_begin_call: int) -> None:
+        self._real = real
+        self.fail_on_begin_call = fail_on_begin_call
+        self.begin_calls = 0
+        self.fired = False
+
+    def begin(self) -> Any:
+        self.begin_calls += 1
+        if self.begin_calls == self.fail_on_begin_call:
+            self.fired = True
+            raise InjectedAppDbFault(
+                f"injected app-db connection drop on begin #{self.begin_calls}"
+            )
+        return self._real.begin()
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._real, name)
 
 
 @dataclass(frozen=True)
@@ -465,6 +505,114 @@ def case_partial_gc_orphan_reuse(dbos: Any, plan: CasePlan) -> dict[str, Any]:
     }
 
 
+def case_appdb_batch_partial_failure(dbos: Any, plan: CasePlan) -> dict[str, Any]:
+    wid_c = plan.workflow_id
+    # Distinct filler workflow ids; their transaction_outputs get OLDER
+    # created_at than the target so the batched app-db delete (oldest-first)
+    # reaches them before the target.
+    filler_wids = [f"{wid_c}-filler-{i}" for i in range(3)]
+    filler_ns = [301, 302, 303]
+
+    for fwid, fn in zip(filler_wids, filler_ns):
+        with SetWorkflowID(fwid):
+            gc_probe(fn)
+        wait_success(fwid)
+        time.sleep(0.05)  # keep created_at strictly ordered (epoch-ms granularity)
+
+    # Target created LAST => strictly newest created_at => never in batch 1.
+    time.sleep(0.05)
+    with SetWorkflowID(wid_c):
+        r30 = gc_probe(30)
+    status1 = wait_success(wid_c)
+    event("appdb_target_first_run", workflow_id=wid_c, r30=r30, status=status1)
+    invariant("a1_first_output", "first_output", r30 == "result-30", r30=r30, status=status1)
+
+    fillers_before = sum(len(app_txn_output_rows(dbos, fwid)) for fwid in filler_wids)
+
+    # Fault the app-db batch loop on its SECOND begin(): batch 1 (oldest filler)
+    # commits, batch 2 begin() raises. Sys-db engine is left untouched so the
+    # sys-db phase completes fully. Public entry point, batch_size=1.
+    cutoff = now_ms() + 3_600_000
+    real_engine = dbos._app_db.engine
+    proxy = AppDbBeginFaultEngine(real_engine, fail_on_begin_call=2)
+    injected_error: str | None = None
+    try:
+        dbos._app_db.engine = proxy  # type: ignore[assignment]
+        try:
+            garbage_collect(dbos, cutoff, None, batch_size=1)
+        except InjectedAppDbFault as exc:
+            injected_error = f"{type(exc).__name__}: {exc}"
+    finally:
+        dbos._app_db.engine = real_engine
+    event(
+        "appdb_public_gc_faulted",
+        cutoff=cutoff,
+        injected_error=injected_error,
+        fault_fired=proxy.fired,
+        appdb_begin_calls=proxy.begin_calls,
+    )
+
+    fillers_after = sum(len(app_txn_output_rows(dbos, fwid)) for fwid in filler_wids)
+    fillers_deleted = fillers_before - fillers_after
+
+    # Reachability: orphan reached via the app-db-loop failure, and batch 1
+    # genuinely committed (>=1 filler tx_output deleted) -- proving the loop ran
+    # and failed partway rather than never starting.
+    sys_after = sys_status_count(dbos, wid_c)
+    app_rows = app_txn_output_rows(dbos, wid_c)
+    invariant(
+        "a2_appdb_batch_partial_orphan",
+        "appdb_batch_partial_orphan",
+        proxy.fired
+        and sys_after == 0
+        and len(app_rows) == 1
+        and fillers_deleted >= 1,
+        fault_fired=proxy.fired,
+        injected_error=injected_error,
+        appdb_begin_calls=proxy.begin_calls,
+        sys_status_rows=sys_after,
+        transaction_output_rows=len(app_rows),
+        fillers_before=fillers_before,
+        fillers_deleted=fillers_deleted,
+        orphan_rows=app_rows,
+    )
+
+    # Reuse the target id -- capture outcome without aborting the run.
+    try:
+        with SetWorkflowID(wid_c):
+            r40 = gc_probe(40)
+        outcome = f"returned:{r40}"
+    except Exception as e:
+        outcome = f"raised:{type(e).__name__}:{e}"
+    effects_n40 = effects_count(dbos, wid_c, 40)
+    event("appdb_reuse", outcome=outcome, effects_n40=effects_n40)
+
+    # MONEY ORACLE: reusing the id after an app-db batch partial failure must
+    # execute FRESH.
+    invariant(
+        "a3_reused_id_after_appdb_partial_executes_fresh",
+        "reused_id_after_appdb_partial_executes_fresh",
+        outcome == "returned:result-40" and effects_n40 == 1,
+        outcome=outcome,
+        effects_n40=effects_n40,
+        note="RED if stale result-30 replayed / body skipped / conflict raised",
+    )
+    return {
+        "scenario": plan.scenario,
+        "workflow_id": wid_c,
+        "filler_workflow_ids": filler_wids,
+        "first_output": r30,
+        "injected_error": injected_error,
+        "appdb_begin_calls": proxy.begin_calls,
+        "fillers_before": fillers_before,
+        "fillers_deleted": fillers_deleted,
+        "sys_status_rows_after_partial_gc": sys_after,
+        "orphan_transaction_output_rows": app_rows,
+        "reuse_outcome": outcome,
+        "effects_n40": effects_n40,
+    }
+
+
 def run_case(plan: CasePlan, artifact_dir: Path) -> int:
     case_artifacts = artifact_dir / plan.case_id
     case_artifacts.mkdir(parents=True, exist_ok=True)
@@ -485,6 +633,8 @@ def run_case(plan: CasePlan, artifact_dir: Path) -> int:
             result = case_baseline_full_gc_reuse(dbos, plan)
         elif plan.scenario == "partial-gc-orphan-reuse":
             result = case_partial_gc_orphan_reuse(dbos, plan)
+        elif plan.scenario == "appdb-batch-partial-failure":
+            result = case_appdb_batch_partial_failure(dbos, plan)
         else:
             raise SetupBlock(f"unsupported scenario {plan.scenario}")
         write_json(case_artifacts / "result.json", result)
