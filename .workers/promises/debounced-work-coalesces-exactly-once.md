@@ -20,19 +20,26 @@ explorations:
       race), that execution carries the latest input committed in its cycle, and
       every debounce() call that returned a handle resolves — no bounce is
       silently dropped. Execution count never exceeds the number of bounces.
-    status: ready
-    result: null
-    reason: null
+    status: done
+    result: green
+    reason: >-
+      Cloud-confirmed green (run 01KX47FF2KHTYPY50VCVFSP6BX, commit 76366ac):
+      the #752 DELAYED-based debouncer coalesces concurrent bounce bursts
+      correctly — each window runs exactly once with its window-latest input,
+      no double-execution, no lost handle, global-latest always present, no
+      cross-window input leak. Robust across cloud timing (case-002 split into
+      8 windows, all green). A first run exposed a fragile single-window oracle
+      (not a product bug, see runs/E-029.md); recalibrated and re-run green.
     workload: workloads/debounce-coalescing/debounce_coalescing_workload.py
     command: .workers/run-with-postgres.sh .workers/python-runtime.sh .workers/workloads/debounce-coalescing/debounce_coalescing_workload.py --rung rung-001-concurrent-bounce-coalescing --all-cases --sequential
     faults: []
     depth: 1
     timeout: 600
     mem: 2048
-    replay: null
+    replay: "run 01KX47FF2KHTYPY50VCVFSP6BX — all cases green (case-002 multi_window_bounded x8, case-003 single_execution_strong). Evidence: runs/E-029.md"
     freshness: new-current
     reported: null
-    published: null
+    published: pending
 ---
 
 # Debounced work coalesces exactly once
