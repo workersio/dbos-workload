@@ -31,6 +31,21 @@ if [ "${WIO_BUILD_LOG_CAPTURED:-0}" != "1" ]; then
   fi
 fi
 
+# Egress probe: failureBuildLogPreview only captures the START of the build
+# log, so emit network diagnostics first — it's the only visibility we have
+# into the build host. Never fails the build.
+echo "=== egress probe $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+for u in https://pypi.org/simple/ https://files.pythonhosted.org/ https://github.com/; do
+  code="$(curl -m 8 -s -o /dev/null -w '%{http_code}' "$u" 2>/dev/null)" || code="CURLFAIL"
+  echo "probe ${u} -> ${code}"
+done
+if git ls-remote --heads https://github.com/dbos-inc/dbos-transact-py.git >/dev/null 2>&1; then
+  echo "probe anon-git -> OK"
+else
+  echo "probe anon-git -> FAIL"
+fi
+echo "=== end probe ==="
+
 rm -rf "${TARGET_SRC}"
 
 UV_BIN=""
