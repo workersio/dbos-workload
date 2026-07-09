@@ -39,7 +39,7 @@ explorations:
     replay: "run 01KX47FF2KHTYPY50VCVFSP6BX — all cases green (case-002 multi_window_bounded x8, case-003 single_execution_strong). Evidence: runs/E-029.md"
     freshness: new-current
     reported: null
-    published: pending
+    published: nd710fnc0xy88v6rk62s27ms318a7bsv
 ---
 
 # Debounced work coalesces exactly once

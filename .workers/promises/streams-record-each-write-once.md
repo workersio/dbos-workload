@@ -36,7 +36,7 @@ explorations:
     replay: "case-001 control: copies=1 PASS; ORACLE_SELFTEST=1 forces RED. Evidence: runs/E-031.md"
     freshness: new-current
     reported: null
-    published: pending
+    published: nd71yz7ec2csc9zgsnvwwb2d318a7fqr
   - key: stream-step-retry-duplicate
     title: A retrying step duplicates the stream value
     description: >-
@@ -65,7 +65,7 @@ explorations:
     replay: "case-002 step-retry-sync: K=2, copies=2 FAIL (stream_exactly_once_case-002). Evidence: runs/E-031.md"
     freshness: new-current
     reported: null
-    published: pending
+    published: nd731edpmg303bbh41gqkp72k58a78dc
   - key: stream-step-async-retry-duplicate
     title: The async write path duplicates identically
     description: >-
@@ -90,7 +90,7 @@ explorations:
     replay: "case-003 step-retry-async: K=4, copies=4 FAIL (stream_exactly_once_case-003). Evidence: runs/E-031.md"
     freshness: new-current
     reported: null
-    published: pending
+    published: nd71x1rmg9rqvy06sy5zkgz4cs8a6wsf
 ---
 
 # A stream records each logical write exactly once

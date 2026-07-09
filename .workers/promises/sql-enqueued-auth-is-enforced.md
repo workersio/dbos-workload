@@ -28,7 +28,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: null
-    published: nd786624rdq1rv8thp02zcbdcx8a6r4p
+    published: nd7cjh10kq0jk3av41pf7pzdzn8a7k6r
   - key: denied-role-reaches-terminal-error
     title: Denied roles must fail terminally
     description: >-
@@ -48,7 +48,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: "dbos-inc/dbos-transact-py#743"
-    published: nd7fzwm8wyffgds2yc6j8cenx18a6kfm
+    published: nd7660g6xwd723qm4wwyxk1f6n8a6m91
 ---
 
 # SQL-enqueued auth is enforced

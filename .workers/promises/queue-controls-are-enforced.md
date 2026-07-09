@@ -28,7 +28,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: null
-    published: nd7662gzvhvb40xh1saekgma918a63ww
+    published: nd79y87tj409t61fgmwz3hk1ws8a7ngq
   - key: queue-rate-limit-under-plan-churn
     title: Rate limit holds under query-plan churn
     description: >-
@@ -47,7 +47,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: null
-    published: nd7a3bw8keptr9yv28gf7a3pw18a7qdj
+    published: nd74776d32cqcwbf7zstz65nbn8a6ak2
   - key: queue-partition-worker-concurrency
     title: Partition worker concurrency cap
     description: >-
@@ -68,7 +68,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: null
-    published: nd72v4jb35g25fn7kq926zwm598a7h9p
+    published: nd72q8kq7x6nr605vzt6dc7btn8a7qna
 ---
 
 # Queue controls are enforced

@@ -32,7 +32,7 @@ explorations:
     replay: "run 01KX3Y9XE23VM5SYAEWD3PB33M — INVARIANT dbos_outer_completed_replay_does_not_rerun_inner_hook FAIL"
     freshness: new-current
     reported: null
-    published: nd76xkcjz2a333g1xq4jb4nsrd8a7vjt
+    published: nd7bf9fek2qz8p4m1j7jx52s6h8a6hz3
 ---
 
 # Decorated functions replay durably

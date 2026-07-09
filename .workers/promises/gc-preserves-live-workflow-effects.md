@@ -41,7 +41,7 @@ explorations:
     replay: "run 01KX460BYM2JHVTJKT2XBQE4WN — case-002 p3 FAIL (outcome=returned:result-10, effects_n20=0); case-001 control green. Evidence: runs/E-028.md"
     freshness: new-current
     reported: 769
-    published: pending
+    published: nd7dr643tsr9q5acvefrztmj0x8a7cc8
   - key: appdb-batch-partial-orphan
     title: Public-API GC with an app-db batch failure still executes fresh on reuse
     description: >-
@@ -69,7 +69,7 @@ explorations:
     replay: "run 01KX4BZJHVB2V4MKPA9FDY08JE — a3 FAIL (outcome=returned:result-30, effects_n40=0); a2 orphan-via-appdb-loop-failure PASS. Evidence: runs/E-028.md"
     freshness: new-current
     reported: 769
-    published: pending
+    published: nd797qgbzzt19b8mq9tvqw3vgd8a6242
 ---
 
 # Garbage collection never resurrects dead step results

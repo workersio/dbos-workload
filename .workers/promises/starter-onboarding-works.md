@@ -27,7 +27,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: null
-    published: nd7dbpt18a3wdwa1fqf4dyhzkx8a65v6
+    published: nd78d3adtf2h98680r3y9gxeeh8a6dg3
   - key: config-secret-no-silent-fallback
     title: Missing secrets must not split the database
     description: >-

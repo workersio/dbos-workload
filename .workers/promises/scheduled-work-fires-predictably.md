@@ -27,7 +27,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: null
-    published: nd711p45tzmrwwga4bk0fa3b0s8a6jxe
+    published: nd7fjax9vzgaetakjy4nd4chj18a60rk
   - key: scheduled-queue-controls-compose
     title: Schedules compose with queue controls
     description: >-
@@ -46,7 +46,7 @@ explorations:
     replay: "run 01KX3YE46SXVJ9VH1CG96QCG7S — 13/13 invariants PASS (survived; timing + queue bounds both held)"
     freshness: new-current
     reported: null
-    published: nd706f2jc0dppkkfa6zgfasqbs8a6xwf
+    published: nd710srqde5atcg4qtyv4zw0qd8a6e93
 ---
 
 # Scheduled work fires predictably

@@ -28,7 +28,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: null
-    published: nd7avfwz7h7kht2gm2jtpbd6md8a6p0s
+    published: nd7bywt2pkkctntqdn4t3m7zy18a72zs
   - key: live-stream-resume-offsets
     title: Streams resume at the right offset
     description: >-
@@ -47,7 +47,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: null
-    published: nd71g1y1w14mvb3aybz1yprhth8a79sy
+    published: nd7bf98w8rp8fv6p24ff6yy80x8a72zb
 ---
 
 # Notifications deliver exactly once

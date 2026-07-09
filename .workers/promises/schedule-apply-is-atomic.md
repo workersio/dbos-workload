@@ -29,7 +29,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: "dbos-inc/dbos-transact-py#741"
-    published: nd7cc8g7ac8jen443c4mmd9kfn8a74fj
+    published: nd78szbprw007k7wjyg48ckmsx8a6vbn
 ---
 
 # Schedule apply is atomic

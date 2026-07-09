@@ -39,7 +39,7 @@ explorations:
     replay: "run 01KX4BVNZ14SCYC29KYRH5BY19 — all cases green. Evidence: runs/E-030.md"
     freshness: new-current
     reported: null
-    published: pending
+    published: nd7911z7nsgxwgd5mrg9qhh74h8a6byx
 ---
 
 # Workflow invocation runs the body once or returns the recorded outcome

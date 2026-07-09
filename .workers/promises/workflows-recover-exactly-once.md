@@ -28,7 +28,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: null
-    published: nd77b8wsckkq4x1s4s45szgk9s8a6c45
+    published: nd7f67jfw04dfn3na4nwf82vds8a602j
   - key: concurrent-recovery-ownership
     title: Stale recoverers must not re-run queued work
     description: >-
@@ -48,7 +48,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: "dbos-inc/dbos-transact-py#742"
-    published: nd77vh5rzgdjyb9773ex37v74s8a74f3
+    published: nd741avva7jf2yqbhkve6q5ds58a655c
 ---
 
 # Workflows recover exactly once

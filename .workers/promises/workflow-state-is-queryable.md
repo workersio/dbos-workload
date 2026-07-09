@@ -27,7 +27,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: null
-    published: nd72vd6sd8kbfe0eqm8h2ytqm58a61eh
+    published: nd76mdxn5kdz0axncw5ktkfys18a7pyn
   - key: temporal-introspection-windows
     title: Timing windows survive every transition
     description: >-
@@ -46,7 +46,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: null
-    published: nd71jj1qf26b3rd1b0h3he2rj98a63x3
+    published: nd797gxd6jx0nx422stzr1cdt18a6hqp
 ---
 
 # Workflow state is fully queryable

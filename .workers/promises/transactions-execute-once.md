@@ -29,7 +29,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: null
-    published: nd78pkp8pj2bnbvxnc3s4jnw0n8a7ymw
+    published: nd77026e3nk7gzrr7hw63mxbt58a6a0p
   - key: transactional-send-atomic-visibility
     title: Transactional send is atomic with commit
     description: >-
@@ -49,7 +49,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: null
-    published: nd77f4db7w7k579gdqs06q3hwn8a607p
+    published: nd7caeyj5zrgrnbk3fa0tr3nz58a6z6s
 ---
 
 # Transactions execute once and only once

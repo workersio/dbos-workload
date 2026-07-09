@@ -27,7 +27,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: null
-    published: nd7da9w7s3cnmt2zdpknvmg3m98a669y
+    published: nd7cyk2wjfnwdx7wwn8qm8gs1n8a73xm
   - key: concurrent-warm-start-lock-wait
     title: Warm starts should not wait on the lock
     description: >-
@@ -49,7 +49,7 @@ explorations:
     replay: "run 01KX3YSJ3T4MH1RJX5NZTF840J case-004 seed 6773 — INVARIANT up_to_date_migrations_return_before_lock_release FAIL (6 workers blocked ~15-16s)"
     freshness: new-current
     reported: null
-    published: nd78rgajx7adbaf67bawtvfvxs8a6qk6
+    published: nd7fsts55w4yvef67z23q36qjx8a7x73
 ---
 
 # Startup migrations stay bounded

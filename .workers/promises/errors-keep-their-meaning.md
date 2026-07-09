@@ -27,7 +27,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: null
-    published: nd7dt530bs7pba22ne2dykrq1n8a7en2
+    published: nd790yhgz784mpxhz27pvmrcts8a7vmz
   - key: portable-error-metadata
     title: Portable errors keep structured metadata
     description: >-
@@ -49,7 +49,7 @@ explorations:
     replay: "run 01KX3YEZAWWGWH4Q7BX7DD7K6Q case-001 — INVARIANT structured_raw_workflow_error_preserves_metadata FAIL"
     freshness: new-current
     reported: null
-    published: nd7b44a8xpvyrdq124p4qhk9n18a7za4
+    published: nd70z1k9rh0kwnk3jyv6bm4pm98a786y
 ---
 
 # Errors keep their meaning

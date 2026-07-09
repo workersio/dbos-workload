@@ -28,7 +28,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: null
-    published: nd7a19vcryrxhs2941z7aw4xp98a7vht
+    published: nd76hw6cws6nepks987kdckcrx8a7rbq
   - key: cancel-children-terminal-immutability
     title: Cancellation reaches every descendant
     description: >-
@@ -48,7 +48,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: null
-    published: nd75ng8nk9exyc2sjz5xw79r798a6jq8
+    published: nd70te49s8yahr2zfdz7qtfjhn8a70wp
 ---
 
 # Lifecycle operations are safe

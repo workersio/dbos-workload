@@ -29,7 +29,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: "dbos-inc/dbos-transact-py PR #728"
-    published: nd74cx6yqrqbpkz49g9gt66fsn8a6zg6
+    published: nd7c0zxxxrtxkkze19gqzss3dn8a60py
 ---
 
 # Schemas stay isolated

@@ -29,7 +29,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: null
-    published: nd7d93xq6nscthzzwb4jaaxgw98a6kas
+    published: nd7dwrnn2gdns9wrbxpb4r8trx8a6tpf
   - key: kafka-offset-survives-relaunch
     title: Produced offset survives immediate relaunch
     description: >-
@@ -49,7 +49,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: null
-    published: nd762wc82r923whwhh5zepxwxx8a74a2
+    published: nd74zcqnemctzcbes96qrd1yg18a7gvm
 ---
 
 # Kafka events process exactly once

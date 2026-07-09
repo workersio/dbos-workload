@@ -28,7 +28,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: null
-    published: nd74jm6awsg44xwb8wwye632j58a6jsm
+    published: nd7e6cbbxpqhae9w885j34sekh8a6q38
   - key: preemptible-step-cancel-isolation
     title: Preempted steps stay isolated on resume
     description: >-
@@ -47,7 +47,7 @@ explorations:
     replay: null
     freshness: new-current
     reported: null
-    published: nd74fbs6vk82wtah9kehefpcqd8a78d1
+    published: nd710y6x4fkyrshmfvm9xkm4ph8a7ttj
   - key: queued-task-cleanup-after-cancel
     title: Cancelled workflows leave no live tasks
     description: >-
@@ -71,7 +71,7 @@ explorations:
     replay: "run 01KX3XZ2KMD2XAMEKTQ5TRBY6Y case-003 seed 7112 — INVARIANT queued_gc_workflow_tasks_released_after_terminal FAIL; released_snapshot count=3 live _execute_workflow_async tasks"
     freshness: new-current
     reported: null
-    published: nd74b381csepv01rmgz8t58bjn8a7jxx
+    published: nd7eqcdrap5h9thyy5wmgtncr98a7sh8
 ---
 
 # Async workflows checkpoint deterministically
