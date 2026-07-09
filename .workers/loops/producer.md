@@ -47,6 +47,7 @@ Producer does not write workload code, transient claims, or raw run evidence.
 - Do not mark executor outcomes unless incorporating committed run evidence
   from `.workers/runs/*.md`.
 - NEVER reference upstream issues or PRs in commit messages (no `#NNN`, no `owner/repo#NNN`): this fork is public and GitHub mirrors commit-message references onto the upstream issue timeline (this leaked our e-028 bookkeeping onto the dbos issue). Record filing state and issue numbers inside `.workers/` file contents only.
+- Classify each rung as seed-sensitive or deterministic when marking it executor-ready, so the executor can choose depth deliberately; seed-sensitive rungs should note what variance a sweep is expected to expose.
 - Use work-item rung ladders for rough producer/executor coordination. Rung
   claim states may include `draft`, `ready`, `blocked_producer`,
   `blocked_workload`, `done_green`, `done_finding`, and `retired`.

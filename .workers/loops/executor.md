@@ -42,6 +42,7 @@ write raw run evidence. Do not rewrite producer-owned intent.
 - Claims are transient and must not be committed.
 - Do not create tracked "picked this up" or "running" state.
 - NEVER reference upstream issues or PRs in commit messages (no `#NNN`, no `owner/repo#NNN`): this fork is public and GitHub mirrors commit-message references onto the upstream issue timeline (this leaked our e-028 bookkeeping onto the dbos issue). Record filing state and issue numbers inside `.workers/` file contents only.
+- Before choosing `--depth`, classify the rung as **seed-sensitive or deterministic** and record one line of rationale in the run record. Deterministic (single actor, no faults, fixed inputs — the VM seed enters no branch): `--depth 1`, say why. Ordering- or fault-timing-sensitive (concurrency, cancellation, recovery races, any engaged fault): `--depth 20` or more — depth inside one `simulate create` is nearly free, and a single-seed run of a racy corridor is the coverage-theater failure mode. Unsure: probe `--depth 2`; identical outcomes across both seeds is evidence of determinism (record it, stay at 1), divergence means sweep.
 
 ## Write Scope
 
@@ -80,7 +81,7 @@ Before a real cloud workload execution:
 Canonical cloud command shape:
 
 ```bash
-PROJECT_ID=kn7a3jjm0frn1qgwpms30amdas88ztwy
+PROJECT_ID=kn71mb4pcxmees43sy547v76z98a7fv0
 RUN_COMMIT="$(git rev-parse HEAD)"
 git push fresh HEAD:main
 wio switch cloud
@@ -89,7 +90,7 @@ wio simulate create "${PROJECT_ID}" \
   --branch main \
   --command '<cloud replay command from the work-item rung>' \
   --workload-path '<primary .workers/workloads/... file>' \
-  --depth 1 \
+  --depth "${DEPTH:?choose per the seed-sensitivity rule}" \
   --timeout 600 \
   --mem 2048 \
   --format json
