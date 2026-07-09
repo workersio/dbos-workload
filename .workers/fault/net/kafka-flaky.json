@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "name": "kafka-flaky: 10% loss + 100\u00b180ms jitter on broker :9092 - rebalance/redelivery pressure",
+  "lo": {
+    "rules": [
+      {
+        "match": {
+          "proto": "tcp",
+          "dport": 9092,
+          "bidirectional": true
+        },
+        "loss": {
+          "percent": 10,
+          "correlation": 0.25
+        },
+        "delay": {
+          "time_ms": 100,
+          "jitter_ms": 80
+        }
+      }
+    ]
+  }
+}

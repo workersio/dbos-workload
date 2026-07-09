@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "name": "db-slow: 600ms +/- 400ms latency on Postgres :5432",
+  "lo": {
+    "rules": [
+      {
+        "match": { "proto": "tcp", "dport": 5432, "bidirectional": true },
+        "delay": { "time_ms": 600, "jitter_ms": 400, "correlation": 0.5 }
+      }
+    ]
+  }
+}

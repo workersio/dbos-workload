@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "name": "db-burst-loss: bursty 30% loss (corr 0.9) on Postgres :5432 - micro-outages",
+  "lo": {
+    "rules": [
+      {
+        "match": { "proto": "tcp", "dport": 5432, "bidirectional": true },
+        "loss": { "percent": 30, "correlation": 0.9 }
+      }
+    ]
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "name": "db-flaky: 10% correlated loss + 60\u00b140ms jitter on Postgres :5432",
+  "lo": {
+    "rules": [
+      {
+        "match": {
+          "proto": "tcp",
+          "dport": 5432,
+          "bidirectional": true
+        },
+        "loss": {
+          "percent": 10,
+          "correlation": 0.25
+        },
+        "delay": {
+          "time_ms": 60,
+          "jitter_ms": 40
+        }
+      }
+    ]
+  }
+}
