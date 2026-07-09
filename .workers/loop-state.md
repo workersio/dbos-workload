@@ -45,16 +45,32 @@ skill-native dispatcher ledger. Spec tree + this file = the loop.
   partial-failure (rung-002) triggers. `finding_candidate`; upstream filing held
   for Viswa. Ready to draft a public-API dossier on his go.
 
-## Next ready executor corridors (durable — resume here)
+## Diff-directed batch — COMPLETE (trigger cleared)
 
-1. **L4** (`scheduler-debouncer-timing`, #752) — post-deadline debounce input
-   mutation. Oracle is **policy-ambiguous** (deadline caps delay TIME; whether it
-   also freezes INPUT recency is unstated) — ground the contract in source/docs
-   before asserting, like #718; may be observational-only.
-- Backlog otherwise near-exhausted for the `9922c1d..a43fead` diff batch:
-  #751 RED (e-028), #752 GREEN (e-029; L4 residual), #763 GREEN (e-030).
-  If L4 resolves to observational, the diff-directed trigger is cleared and the
-  loop returns to standing-pool producer work (row 6) / awaits new target commits.
+The `9922c1d..a43fead` diff-directed episode is fully covered:
+- **#751** incremental GC → **RED** finding (e-028, two triggers: crash-between-phases
+  + public-API app-db-batch partial failure).
+- **#752** debounce-with-delay → **GREEN** regression (e-029 concurrent coalescing).
+  L4 (post-deadline input mutation) **RETIRED as observational** — source grounding
+  shows `debounce_timeout` caps only delay time, no input-freeze guarantee (#718 trap).
+- **#763** behavior-consistency → **GREEN** regression (e-030 invoke pipeline).
+
+last-scanned-sha `a43fead` == target-head-sha → no new-commit trigger.
+
+## Dispatcher status → row 1 boundary (diff frontier)
+
+No in-flight/ready work, no pending re-entry, diff-directed trigger cleared,
+backlog top-active below threshold (only parked entries: whitespace-key 3,
+gc-leak 2). Coverage of the **triggered** frontier is exhausted. Resuming the loop
+means either: (a) a **standing-pool scout refresh** (row 6 producer, `overview.md`
+areas — mostly harvested green, lower value), or (b) **await new target commits**
+(the fault-library workstream keeps pushing to origin/main; a code-touching commit
+re-fires row 4). Recommend (b) unless directed to grind the standing pool.
+
+## Open decision (Viswa)
+
+- **e-028** filing: RED finding, now with a public-API-triggered variant that
+  removes the white-box objection. Draft-a-dossier is ready on his go; not filed.
 
 ## Findings this session
 
