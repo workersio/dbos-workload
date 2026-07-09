@@ -1,3 +1,10 @@
+---
+key: workflow-invoke-outcome-pipeline
+title: Workflow invoke outcome pipeline
+description: Every workflow invocation flows through one restructured outcome pipeline — concurrent same-id invokes, completed-result replay, and recorded-error re-raise stay exactly-once and consistent across the sync and async paths.
+order: 120
+---
+
 # Area: workflow-invoke-outcome-pipeline
 
 ## Current State

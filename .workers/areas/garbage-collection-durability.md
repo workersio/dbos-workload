@@ -1,3 +1,10 @@
+---
+key: garbage-collection-durability
+title: Garbage collection durability
+description: Incremental garbage collection deletes a workflow's system-DB status and its application-DB transaction outputs as one logical unit — it must never orphan transaction outputs so that a reused workflow id replays a dead workflow's recorded step result instead of executing fresh.
+order: 100
+---
+
 # Area: garbage-collection-durability
 
 ## Current State
