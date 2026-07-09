@@ -18,8 +18,8 @@ skill-native dispatcher ledger. Spec tree + this file = the loop.
 
 | Field | Value |
 |---|---|
-| loops run this session | 3 |
-| workloads run this session | 2 (e-028 cloud RED; e-029 cloud calibration) |
+| loops run this session | 4 |
+| workloads run this session | 3 (e-028 RED; e-029 calibration + green re-run) |
 | loop cap (rail) | 100 |
 | workload cap (rail) | 250 |
 | no-new-information streak | 0 |
@@ -27,10 +27,21 @@ skill-native dispatcher ledger. Spec tree + this file = the loop.
 
 ## In-flight
 
-- executor: `e-029` / `rung-001-concurrent-bounce-coalescing` — recalibrating a
-  cloud-fragile oracle (single-window timing assumption), then re-run. **Not a
-  finding**: the #752 debouncer behaved correctly; the failing invariant was a
-  workload timing assumption (see `runs/E-029.md`). Robust invariants all green.
+- none. Both corridors this session resolved on cloud:
+  - `e-028` → **RED finding candidate** (`01KX460BYM2JHVTJKT2XBQE4WN`).
+  - `e-029` → **GREEN regression rung** (`01KX47FF2KHTYPY50VCVFSP6BX`).
+
+## Next ready executor corridors (durable — resume here)
+
+1. **L1b** (`garbage-collection-durability`) — public-API / app-db-batch variant
+   of the e-028 OAOO orphan (the PR's resumable test never faults the app-db
+   side). A public-API repro would strengthen the e-028 dossier; gate on the
+   e-028 filing decision.
+2. **L3** (`workflow-invoke-outcome-pipeline`, #763) — concurrent same-id async
+   invocation + already-completed async replay across `asyncio.to_thread`.
+3. **L4** (`scheduler-debouncer-timing`, #752) — post-deadline debounce input
+   mutation; oracle is policy-ambiguous (deadline caps time, maybe not input
+   recency) — ground the contract before asserting, like #718.
 
 ## Findings this session
 
