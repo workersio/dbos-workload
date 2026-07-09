@@ -41,6 +41,7 @@ write raw run evidence. Do not rewrite producer-owned intent.
 - Claim by creating `.workers/.claims/<work-item-id>--<rung-id>.lock`.
 - Claims are transient and must not be committed.
 - Do not create tracked "picked this up" or "running" state.
+- NEVER reference upstream issues or PRs in commit messages (no `#NNN`, no `owner/repo#NNN`): this fork is public and GitHub mirrors commit-message references onto the upstream issue timeline (this leaked our e-028 bookkeeping onto the dbos issue). Record filing state and issue numbers inside `.workers/` file contents only.
 
 ## Write Scope
 
