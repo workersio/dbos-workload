@@ -3,6 +3,12 @@
 This repository is for DBOS workload discovery and execution using the current
 WIO workload harness shape.
 
+Milestone events (upstream issue filed, finding cloud-confirmed, coverage
+milestone) are tracked outside this repo too: update Viswa's wiki —
+`~/work/wiki/pages/workers/plans/fleet-dbos.md` (narrative) and ledger rows in
+`~/work/wiki/pages/workers/interception-ledger.md` — commit AND push the wiki
+(pushing is publishing), and refresh `~/work/ROADMAP.md`.
+
 Target under test:
 
 - DBOS Transact Python: `./target`
