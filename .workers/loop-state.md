@@ -18,30 +18,43 @@ skill-native dispatcher ledger. Spec tree + this file = the loop.
 
 | Field | Value |
 |---|---|
-| loops run this session | 4 |
-| workloads run this session | 3 (e-028 RED; e-029 calibration + green re-run) |
+| loops run this session | 6 |
+| workloads run this session | 6 (e-028 x2 incl app-db variant; e-029 x2; e-030) |
 | loop cap (rail) | 100 |
 | workload cap (rail) | 250 |
 | no-new-information streak | 0 |
 | staleness K | 5 |
 
+## Worker note
+
+- Managed worker auto-idled to `offline` mid-session (blocked prepare/run);
+  restarted with `wio worker start` (billed 16-slot container; auto-idles again).
+
 ## In-flight
 
-- none. Both corridors this session resolved on cloud:
-  - `e-028` → **RED finding candidate** (`01KX460BYM2JHVTJKT2XBQE4WN`).
+- none. Diff-directed batch corridors resolved on cloud:
+  - `e-028` → **RED finding candidate** (`01KX460BYM2JHVTJKT2XBQE4WN` white-box;
+    **strengthened** by app-db-batch public-API variant `01KX4BZJHVB2V4MKPA9FDY08JE`).
   - `e-029` → **GREEN regression rung** (`01KX47FF2KHTYPY50VCVFSP6BX`).
+  - `e-030` → **GREEN regression rung** (`01KX4BVNZ14SCYC29KYRH5BY19`).
+
+## Findings this session
+
+- **e-028** GC two-phase orphan → stale OAOO replay (#751): RED, cloud-confirmed
+  via BOTH the crash-between-phases (rung-001) and the public-API app-db-batch
+  partial-failure (rung-002) triggers. `finding_candidate`; upstream filing held
+  for Viswa. Ready to draft a public-API dossier on his go.
 
 ## Next ready executor corridors (durable — resume here)
 
-1. **L1b** (`garbage-collection-durability`) — public-API / app-db-batch variant
-   of the e-028 OAOO orphan (the PR's resumable test never faults the app-db
-   side). A public-API repro would strengthen the e-028 dossier; gate on the
-   e-028 filing decision.
-2. **L3** (`workflow-invoke-outcome-pipeline`, #763) — concurrent same-id async
-   invocation + already-completed async replay across `asyncio.to_thread`.
-3. **L4** (`scheduler-debouncer-timing`, #752) — post-deadline debounce input
-   mutation; oracle is policy-ambiguous (deadline caps time, maybe not input
-   recency) — ground the contract before asserting, like #718.
+1. **L4** (`scheduler-debouncer-timing`, #752) — post-deadline debounce input
+   mutation. Oracle is **policy-ambiguous** (deadline caps delay TIME; whether it
+   also freezes INPUT recency is unstated) — ground the contract in source/docs
+   before asserting, like #718; may be observational-only.
+- Backlog otherwise near-exhausted for the `9922c1d..a43fead` diff batch:
+  #751 RED (e-028), #752 GREEN (e-029; L4 residual), #763 GREEN (e-030).
+  If L4 resolves to observational, the diff-directed trigger is cleared and the
+  loop returns to standing-pool producer work (row 6) / awaits new target commits.
 
 ## Findings this session
 

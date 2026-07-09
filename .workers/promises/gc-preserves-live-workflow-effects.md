@@ -42,6 +42,34 @@ explorations:
     freshness: new-current
     reported: null
     published: pending
+  - key: appdb-batch-partial-orphan
+    title: Public-API GC with an app-db batch failure still executes fresh on reuse
+    description: >-
+      Stronger, public-API trigger for the same OAOO orphan: the public
+      garbage_collect(batch_size=1) runs the sys-db phase fully, then a single
+      transient fault in the app-db batched delete loop (batch 1 commits, batch
+      2 fails) orphans the target's transaction outputs. Reusing the id must
+      execute fresh; RED if the dead output is replayed. Removes the white-box
+      phase-skip objection of partial-gc-orphan-reuse.
+    status: done
+    result: red
+    reason: >-
+      Confirmed on cloud (run 01KX4BZJHVB2V4MKPA9FDY08JE, commit f834259):
+      public garbage_collect + one transient app-db-loop fault orphaned the
+      target (a2: batch 1 committed, fault fired); reuse returned stale
+      result-30, body skipped (a3 FAIL, effects_n40=0). The PR's resumable test
+      only faults the sys-db side; this is the app-db-loop partial failure it
+      never covers. Finding candidate — filing held for human triage.
+    workload: workloads/gc-orphan-oaoo/gc_orphan_oaoo_workload.py
+    command: .workers/run-with-postgres.sh .workers/python-runtime.sh .workers/workloads/gc-orphan-oaoo/gc_orphan_oaoo_workload.py --rung rung-001-gc-orphan-oaoo --case case-003
+    faults: []
+    depth: 1
+    timeout: 600
+    mem: 2048
+    replay: "run 01KX4BZJHVB2V4MKPA9FDY08JE — a3 FAIL (outcome=returned:result-30, effects_n40=0); a2 orphan-via-appdb-loop-failure PASS. Evidence: runs/E-028.md"
+    freshness: new-current
+    reported: null
+    published: pending
 ---
 
 # Garbage collection never resurrects dead step results
