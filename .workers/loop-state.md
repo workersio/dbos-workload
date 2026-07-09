@@ -14,6 +14,27 @@ skill-native dispatcher ledger. Spec tree + this file = the loop.
 | target-head-sha (DBOS source frontier) | `a43fead` (#763 Improve Behavior Consistency) |
 | last-scanned-sha | `a43fead` (advanced this session; was `9922c1d`) |
 
+## SESSION RESUME (2026-07-09, post-publish) — read this first
+
+Done this session: (1) **e-028 FILED #769** upstream + bookkeeping. (2) **e-031
+NEW RED finding** — write_stream-from-step not exactly-once — full oracle-plane
+workload + specs committed; local pg confirmed (control GREEN, step-retry-sync +
+async RED, selftest RED). (3) **publish.py** fixed (dead project id) + 3 area
+frontmatter files fixed; **41 officials published** to live project, `published:`
+ids recorded/committed; cloud runs (incl. e-031 x3) **executing** on worker —
+verdicts via conductor watch. (4) **S2 demoted** 10→4 (atomic effect+record blocks
+double-apply; reason in backlog). HEAD `72f903d`, tree clean, synced.
+
+**NEXT (aim discipline — above-threshold rows un-attacked):** S3
+`queue-dequeue-crash-slot` (score 8) then S4 `recv-async-cancel-storm` (8). Build
+v0.6.0 oracle-plane workloads. **Filing:** e-028 done (#769); **e-031 filing HELD
+for Viswa** (do NOT file without go). Local pg for dev-box runs: postgres on
+:5459 (`unix_socket_directories=/tmp/wiopg`); export
+`DBOS_POSTGRES_ADMIN_URL=postgresql+psycopg://postgres:dbos@127.0.0.1:5459/postgres`
+and run the workload via `.workers/python-runtime.sh` directly (run-with-postgres.sh
+needs root chown). **Never edit tracked files while publish.py runs — it needs a
+clean+pushed tree per create.**
+
 ## Counters
 
 | Field | Value |
