@@ -103,6 +103,27 @@ re-fires row 4). Recommend (b) unless directed to grind the standing pool.
 - **standing-pool scout** running (agent `a014f5a57b64e1206`) → seeds `backlog.md`,
   then attack top-first with v0.6.0 oracle-plane workloads.
 
+## S1 stream-step-oaoo — CONFIRMED RED (probe, local) 2026-07-09
+
+**Finding e-031 candidate.** `DBOS.write_stream` from a **step** context routes to
+`write_stream_from_step` (`_sys_db.py:4229`) which has **no**
+`_check_operation_execution_txn` guard (its workflow sibling
+`write_stream_from_workflow` DOES, `:4265`); `streams` PK is
+`(workflow_uuid, key, offset)`, excludes `function_id`. A `@DBOS.step(max_attempts=3)`
+that calls `DBOS.write_stream` then fails re-invokes the body under the SAME
+`function_id` each retry (`_core.py` retry loop), re-inserting a duplicate at a new
+offset. **Probe (local pg :5459): step-context → `['V','V','V']` count=3;
+workflow-context → `['V']` count=1.** Same identical API (`DBOS.write_stream`), no
+doc distinction → differential OAOO-consistency violation, sibling to e-028.
+Full oracle-plane workload BUILT + verified local: `.workers/workloads/stream-step-oaoo/stream_step_oaoo_workload.py`.
+case-001 control copies=1 GREEN; case-002 step-retry-sync K=2 copies=2 RED;
+case-003 step-retry-async K=4 copies=4 RED (async parity via write_stream_async);
+ORACLE_SELFTEST forces control RED (oracle live). Specs written: area
+`stream-durability-oaoo`, promise `streams-record-each-write-once` (3 explorations),
+work-item `e-031`, run `E-031`. Backlog S1 → DONE. **Cloud replay PENDING**
+(publish/prepare churn); **upstream filing HELD for Viswa** (do NOT file without go).
+Local pg for dev-box runs: `pg_ctl -D <scratch>/pg16 -o "-p 5459 -c unix_socket_directories=/tmp/wiopg"` (harness run-with-postgres.sh needs root chown; bypass it).
+
 ## Standing-pool grind — plan (resume here post-compaction)
 
 Diff-directed batch done. Now row-6 producer on the standing pool: refresh the
