@@ -82,22 +82,20 @@ re-fires row 4). Recommend (b) unless directed to grind the standing pool.
 - **Aim discipline:** do NOT stop while any above-threshold backlog row is
   un-attacked — attack it, or demote it with a recorded reason.
 - **Decisions in force:** (a) grind the STANDING POOL now (do not wait for new
-  commits); (b) publish done explorations via `.workers/publish.py`; (c) do NOT
-  file e-028 upstream (Viswa's call) — keep strengthening the dossier draft
-  (`.workers/dossiers/e-028-gc-orphan-oaoo.md`) so it's ready on his go.
+  commits); (b) publish done explorations via `.workers/publish.py`; (c) e-028
+  filing — **DONE**, filed upstream as #769 (Viswa gave GO).
 
 ## ACTIVE TASKS (post-compaction resume here)
 
-- **e-028 FILING — APPROVED by Viswa (GO).** File on `dbos-inc/dbos-transact-py`
-  via `gh` as **viswa-abe**. ONE issue covering BOTH variants (sys-db-side partial
-  GC + app-db-batch partial failure): partial GC orphans `transaction_outputs`,
-  reused workflow id replays the dead step output instead of running fresh.
-  Ordinary-user framing, ZERO product vocab, standalone repro in collapsed
-  `<details>` (style of #767/#768). **MUST verify the repro runs standalone
-  (`pip install dbos` + postgres) before posting** — a subagent is building+verifying
-  it (agent `ab835809fa331a43e`); check released-vs-main version reproducibility.
-  After filing: record issue # in `.workers/issues/` + here, then resume standing pool.
-  Draft: `.workers/dossiers/e-028-gc-orphan-oaoo.md`.
+- **e-028 FILING — DONE. FILED as #769.**
+  https://github.com/dbos-inc/dbos-transact-py/issues/769 — filed 2026-07-09 via
+  `gh` as **viswa-abe**. ONE issue, BOTH variants (sys-db-side partial GC +
+  app-db partial failure). Ordinary-user framing, ZERO product vocab, standalone
+  repro in collapsed `<details>`. Repro **verified on released `dbos==2.26.0`**
+  (both variants + control) before posting. Note: released `garbage_collect` has
+  NO `batch_size` (single non-batched app-db delete) — issue does not reference
+  batching (that's main-only, #751). Record: `.workers/issues/E-028-gc-orphan-oaoo-filed-769.md`.
+  Promise `reported: 769`. Dossier draft: `.workers/dossiers/e-028-gc-orphan-oaoo.md`.
 - **publish.py BLOCKED** — crashes intermittently at `image_commit()` when
   `wio projects get` returns `preparation.currentImage: null` (transient during
   any in-flight prepare). Needs a None-guard + retry. Publication of the 23 done

@@ -19,6 +19,21 @@ Source of this batch: diff-directed scan of `9922c1d..a43fead` (#752 debounce,
 | L3 | **outcome-pipeline-async-replay** — `_core.workflow_wrapper` restructured to `.wrap(get_wf_invoke).intercept(check_and_init)`; concurrent same-id async invocations + already-completed async replay (recorded result AND recorded error re-raise) across `asyncio.to_thread` threads | #763 | workflow-invoke-outcome-pipeline (new) | correctness 3 × med-high | 8 | needs producer design |
 | L4 | **debounce-post-deadline-input-mutation** — once `delay_until` is capped at `debounce_deadline_epoch_ms`, later bounces still overwrite `inputs` while the delay stays pinned | #752 | scheduler-debouncer-timing | — | — | **RETIRED (observational)** — source grounding: `debounce_timeout_sec` caps only delay TIME (`delay_until = min(delay, deadline)`), no documented guarantee that inputs freeze at the deadline. "Latest input wins, fire by deadline" is the contract. Asserting input-freeze would repeat the #718 unstated-policy trap. Not a finding. |
 
+## Standing-pool corridors (scout refresh 2026-07-09, v0.6.0 oracle plane)
+
+Attack top-first with v0.6.0-compliant workloads (durawatch + crashclock +
+liveness/terminal sweeps + async parity; anti-vacuity VOID floors; selftest).
+
+| # | corridor | area | trigger (source-grounded) | lib | score | state |
+|---|----------|------|---------------------------|-----|------:|-------|
+| S1 | **stream-step-oaoo** — `write_stream` from a STEP context is not exactly-once | stream-durability-oaoo (new) / message-event | `write_stream_from_step` (`_sys_db.py:4229`) computes offset `max+1`, records NO operation_output, NO `_check_operation_execution_txn` guard (its workflow sibling HAS it, `:4299`); `streams` PK excludes `function_id` (`_schemas:266`). A **step retry alone** (max_attempts>1) re-inserts a duplicate value at a new offset — crash widens it. | crashclock op-index/phase-straddle + durawatch | **12** | **ATTACK NEXT** |
+| S2 | **datasource-oaoo-pg-restart** — datasource retry under real PG process restart (not lock) | datasource-transaction-oaoo | `crashclock.restart_dependency` drops/restarts Postgres mid-txn → connection reset; does the retry loop double-apply the app effect / double-record `datasource_outputs`? Distinct from E-023 (SQLite lock). | crashclock.restart_dependency + durawatch | 10 | ready-to-draft |
+| S3 | **queue-dequeue-crash-slot** — kill in ENQUEUED→PENDING dequeue window vs concurrency accounting | queue-composed-controls | op-index kill after dequeue commit, before body; `worker_concurrency` from in-memory `local_running_count` (`:3873`) vs global DB PENDING count that only WARNS (`:3894`). Double-exec or stranded slot? | crashclock op-index + interleave(2 workers) | 8 | ready-to-draft |
+| S4 | **recv-async-cancel-storm** — interleaved async waiter cancel racing delivery | message-event-cancellation | `_run_event_setup_async` (`:3119-3170`) double-cancel branch: leftover `notifications_map` entry → next recv `DBOSWorkflowConflictIDError` + "parks caller forever". Seed-search cancel/deliver orderings. | interleave(2-3 actors) | 8 | ready-to-draft |
+| S5 | **notify-loss-db-reconnect** — LISTEN/NOTIFY dropped across DB restart → 60s fallback stall | message-event-cancellation | reconnect re-issues LISTEN (`_sys_db_postgres:159`) but never re-scans maps; NOTIFY during down-window lost; waiter stalls to `_notification_fallback_polling_interval=60s`. Availability. | crashclock.restart_dependency + durawatch(latency) | 5 | parked (below threshold; only if S1-4 claimed) |
+
+Avoid (scout): re-running stream WORKFLOW-context writes (harvested green); GC-cascade-of-events (ON DELETE CASCADE by design, policy-ambiguous); any debounce input-freeze (#718 trap).
+
 ## Below threshold / parked
 
 | corridor | commit | why parked | score |
