@@ -22,19 +22,24 @@ explorations:
       recorded an ERROR re-raises the ORIGINAL exception type — never a pipeline
       leak (KeyError / NoResult / missing init_status). Side effect fires exactly
       once across all invocations.
-    status: ready
-    result: null
-    reason: null
+    status: done
+    result: green
+    reason: >-
+      Cloud-confirmed green (run 01KX4BVNZ14SCYC29KYRH5BY19, commit f834259):
+      #763's .wrap(get_wf_invoke).intercept(check_and_init) restructure
+      preserves exactly-once invocation for concurrent same-id, completed-async
+      result replay, and completed-async ERROR re-raise (original ProbeError,
+      not a pipeline leak). Independent ledger proves body-once.
     workload: workloads/workflow-invoke-outcome-pipeline/workflow_invoke_outcome_pipeline_workload.py
     command: .workers/run-with-postgres.sh .workers/python-runtime.sh .workers/workloads/workflow-invoke-outcome-pipeline/workflow_invoke_outcome_pipeline_workload.py --rung rung-001-concurrent-and-replay-invoke --all-cases --sequential
     faults: []
     depth: 1
     timeout: 600
     mem: 2048
-    replay: null
+    replay: "run 01KX4BVNZ14SCYC29KYRH5BY19 — all cases green. Evidence: runs/E-030.md"
     freshness: new-current
     reported: null
-    published: null
+    published: pending
 ---
 
 # Workflow invocation runs the body once or returns the recorded outcome
