@@ -1,0 +1,16 @@
+{
+  "version": "2026-06-24",
+  "services": [
+    { "name": "kafka", "ports": [9092] }
+  ],
+  "serviceFaults": [
+    {
+      "name": "kafka-outage",
+      "service": "kafka",
+      "startMs": { "min": 5000, "max": 20000 },
+      "durationMs": { "min": 2000, "max": 8000 },
+      "mode": "blackhole",
+      "direction": "bidirectional"
+    }
+  ]
+}
