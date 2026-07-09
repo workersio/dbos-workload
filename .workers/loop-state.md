@@ -18,8 +18,8 @@ skill-native dispatcher ledger. Spec tree + this file = the loop.
 
 | Field | Value |
 |---|---|
-| loops run this session | 2 |
-| workloads run this session | 1 |
+| loops run this session | 3 |
+| workloads run this session | 2 (e-028 cloud RED; e-029 cloud calibration) |
 | loop cap (rail) | 100 |
 | workload cap (rail) | 250 |
 | no-new-information streak | 0 |
@@ -27,15 +27,25 @@ skill-native dispatcher ledger. Spec tree + this file = the loop.
 
 ## In-flight
 
-- none. `e-028` complete: **RED finding candidate** confirmed on cloud
-  (run `01KX460BYM2JHVTJKT2XBQE4WN`, p3 FAIL). See `runs/E-028.md`.
+- executor: `e-029` / `rung-001-concurrent-bounce-coalescing` — recalibrating a
+  cloud-fragile oracle (single-window timing assumption), then re-run. **Not a
+  finding**: the #752 debouncer behaved correctly; the failing invariant was a
+  workload timing assumption (see `runs/E-029.md`). Robust invariants all green.
+
+## Findings this session
+
+- **e-028** GC two-phase orphan → stale OAOO replay (#751): **RED**, cloud-confirmed
+  (`01KX460BYM2JHVTJKT2XBQE4WN`). `finding_candidate`; upstream filing held for
+  human triage (Viswa).
 
 ## Re-entry
 
-- re-entry: `partial-gc-orphan-reuse` → **switch** — corridor RED-harvested as a
-  finding; upstream filing held for human triage. Backlog L1 done; a same-path
-  GC sibling (app-db batched-loop partial failure / GC-vs-recovery) bumps up. Next
-  ready executor corridor: backlog **L2 debounce-concurrent-coalescing** (#752).
+- re-entry: `partial-gc-orphan-reuse` → **switch** (RED-harvested; filing held).
+- re-entry: `concurrent-bounce-coalescing` → **deepen/recal** — green in substance,
+  oracle recalibrated for cloud timing; re-run then decay the debounce corridor.
+- Next ready executor corridors after e-029 green: backlog **L4** (post-deadline
+  debounce input mutation, reuses debounce harness) and **L3** (outcome-pipeline
+  async replay, #763). **L1b** (GC app-db-batch / GC-vs-recovery) deepens e-028.
 
 ## Triggers
 
