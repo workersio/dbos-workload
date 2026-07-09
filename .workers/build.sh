@@ -2,7 +2,7 @@
 set -eu
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-TARGET_REPO_URL="${DBOS_TARGET_REPO_URL:-https://github.com/dbos-inc/dbos-transact-py.git}"
+TARGET_REPO_URL="${DBOS_TARGET_REPO_URL:-}"
 TARGET_REF="${DBOS_TARGET_REF:-9922c1d0639a9899760e7232e7fe47ded44eea83}"
 TARGET_VERSION="${DBOS_TARGET_VERSION:-0.0.0+$(printf '%s' "${TARGET_REF}" | cut -c1-12)}"
 TARGET_SRC="${ROOT}/.workers/vendor/dbos-transact-py"
@@ -93,10 +93,22 @@ print("prepared kafka broker:", path, path.stat().st_size)
 PY
 }
 
-git init "${TARGET_SRC}"
-git -C "${TARGET_SRC}" remote add origin "${TARGET_REPO_URL}"
-git -C "${TARGET_SRC}" fetch --depth 1 origin "${TARGET_REF}"
-git -C "${TARGET_SRC}" checkout --detach FETCH_HEAD
+# Vendor the target source. This repo IS a fork of dbos-transact-py (main =
+# upstream ${TARGET_REF} + .workers/ on top), so default to copying the repo
+# root locally — the build host's anonymous git fetches to GitHub get
+# throttled (authenticated repo clone works; unauthenticated vendor fetch
+# fast-fails). Set DBOS_TARGET_REPO_URL to force a network fetch of a
+# different repo/ref instead.
+if [ -n "${TARGET_REPO_URL}" ]; then
+  git init "${TARGET_SRC}"
+  git -C "${TARGET_SRC}" remote add origin "${TARGET_REPO_URL}"
+  git -C "${TARGET_SRC}" fetch --depth 1 origin "${TARGET_REF}"
+  git -C "${TARGET_SRC}" checkout --detach FETCH_HEAD
+else
+  mkdir -p "${TARGET_SRC}"
+  (cd "${ROOT}" && tar --exclude ./.workers --exclude ./.git -cf - .) \
+    | tar -C "${TARGET_SRC}" -xf -
+fi
 
 ensure_python
 rm -rf "${VENV}"
