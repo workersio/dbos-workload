@@ -14,6 +14,29 @@ skill-native dispatcher ledger. Spec tree + this file = the loop.
 | target-head-sha (DBOS source frontier) | `a43fead` (#763 Improve Behavior Consistency) |
 | last-scanned-sha | `a43fead` (advanced this session; was `9922c1d`) |
 
+## DOSSIER BATCH (2026-07-09, post-filing-freeze) — read this first
+
+Viswa froze upstream filing (he batch-sends himself). Deliverable: maintainer-ready
+dossiers in `.workers/dossiers/` + `READY-TO-SEND.md` index. **Verification is
+EMPIRICAL against latest RELEASED pypi dbos (2.26.0), NOT the fork** — the fork
+tracks unreleased main and is AHEAD of the release (has #744, #763 that 2.26.0
+lacks). Released venv: `<scratchpad>/venv/bin/python` (real 2.26.0 in site-packages;
+run repros as scripts from a NEUTRAL dir so `import dbos` = release, not `./dbos`).
+Fork test: `PYTHONPATH=<repo>`. Local pg still on :5459.
+
+Triage of the 6 named held candidates + 1 new scout find:
+- **e-032 (NEW, scout)** — `DBOS.send` from a step not exactly-once (e-031 analog on
+  notifications). **LIVE on release AND main** → highest value. Confirmed both
+  (step-send=3 copies, wf-send=1). Dossier+repro+work-item+run done.
+- **e-024** — completed async workflow re-runs body. LIVE on release, FIXED on main. Packaged.
+- **e-023** — sqlite datasource pre-check not retried. LIVE on release, FIXED on main (#763). Packaged.
+- **e-025** — client get_event full-timeout after terminal miss. LIVE both, but CONTRACT
+  QUESTION (#718 risk) — packaged as a QUESTION, not a defect.
+- **e-002, e-015** — FIXED in released 2.26.0 (#744 shipped). NOT sendable.
+- **e-008** — env-only repro + mechanism removed upstream. NOT sendable.
+All in `READY-TO-SEND.md`. Filing stays with Viswa. Scout also flagged
+resume-vs-finalize (#718 risk, low conf) + sync-child-getresult (exploratory) — not pursued.
+
 ## SESSION RESUME (2026-07-09, post-publish) — read this first
 
 Done this session: (1) **e-028 FILED #769** upstream + bookkeeping. (2) **e-031
