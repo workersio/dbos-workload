@@ -25,9 +25,20 @@ ids recorded/committed; cloud runs (incl. e-031 x3) **executing** on worker —
 verdicts via conductor watch. (4) **S2 demoted** 10→4 (atomic effect+record blocks
 double-apply; reason in backlog). HEAD `72f903d`, tree clean, synced.
 
-**NEXT (aim discipline — above-threshold rows un-attacked):** S3
-`queue-dequeue-crash-slot` (score 8) then S4 `recv-async-cancel-storm` (8). Build
-v0.6.0 oracle-plane workloads. **Filing:** e-028 done (#769); **e-031 filing HELD
+**NEXT (aim discipline):** S3 DEMOTED (grounded, backlog). **S4
+`recv-async-cancel-storm` (8) is the genuine next attack — NOT a demote.**
+Grounding done: `_run_event_setup_async` (`_sys_db.py:3119-3170`) — the function's
+OWN docstring admits the hazard: a leftover `notifications_map`/recv entry after
+cancellation → next recv `DBOSWorkflowConflictIDError` → "parks the caller in
+await_workflow_result forever." The code is the fix; its residual is the
+**double-cancel** path: on a 2nd CancelledError during cleanup-wait it defers
+unregister to `add_done_callback(unregister)` and re-raises — a window where a
+concurrent recv on the same (workflow, topic) can trip the stale entry before the
+callback fires. Attack: `interleave` (2-3 async actors) driving recv_async →
+cancel → cancel-again (force deferred path) racing a 2nd recv into the window;
+oracle = liveness watchdog (caller must not park) + no spurious ConflictID +
+terminal sweep. Build v0.6.0 oracle-plane workload. After S4, backlog top-active
+is below threshold (S5 parked at 5) → row-1 coverage-exhausted candidate. **Filing:** e-028 done (#769); **e-031 filing HELD
 for Viswa** (do NOT file without go). Local pg for dev-box runs: postgres on
 :5459 (`unix_socket_directories=/tmp/wiopg`); export
 `DBOS_POSTGRES_ADMIN_URL=postgresql+psycopg://postgres:dbos@127.0.0.1:5459/postgres`
