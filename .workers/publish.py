@@ -37,7 +37,10 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parent.parent
 WIO = os.environ.get("WIO", "wio")
-PROJECT_ID = os.environ.get("WIO_PROJECT_ID", "kn7a3jjm0frn1qgwpms30amdas88ztwy")
+# Reconciled live target: "DBOS Workload" / workersio/dbos-workload. The old
+# `kn7a3jjm…` project is dead (`wio projects get` returns null); see the
+# fleet-dbos cloud-target reconciliation note.
+PROJECT_ID = os.environ.get("WIO_PROJECT_ID", "kn71mb4pcxmees43sy547v76z98a7fv0")
 
 
 def frontmatter(text: str) -> dict:
