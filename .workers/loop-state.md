@@ -38,8 +38,8 @@ callback fires. Attack: `interleave` (2-3 async actors) driving recv_async →
 cancel → cancel-again (force deferred path) racing a 2nd recv into the window;
 oracle = liveness watchdog (caller must not park) + no spurious ConflictID +
 terminal sweep. Build v0.6.0 oracle-plane workload. After S4, backlog top-active
-is below threshold (S5 parked at 5) → row-1 coverage-exhausted candidate. **Filing:** e-028 done (#769); **e-031 filing HELD
-for Viswa** (do NOT file without go). Local pg for dev-box runs: postgres on
+is below threshold (S5 parked at 5) → row-1 coverage-exhausted candidate. **Filing:** e-028 done (#769); **e-031 FILED #770**
+(2026-07-09, Viswa-approved; record `.workers/issues/E-031-...-770.md`). Local pg for dev-box runs: postgres on
 :5459 (`unix_socket_directories=/tmp/wiopg`); export
 `DBOS_POSTGRES_ADMIN_URL=postgresql+psycopg://postgres:dbos@127.0.0.1:5459/postgres`
 and run the workload via `.workers/python-runtime.sh` directly (run-with-postgres.sh
@@ -153,7 +153,7 @@ case-003 step-retry-async K=4 copies=4 RED (async parity via write_stream_async)
 ORACLE_SELFTEST forces control RED (oracle live). Specs written: area
 `stream-durability-oaoo`, promise `streams-record-each-write-once` (3 explorations),
 work-item `e-031`, run `E-031`. Backlog S1 → DONE. **Cloud replay PENDING**
-(publish/prepare churn); **upstream filing HELD for Viswa** (do NOT file without go).
+(publish/prepare churn); **upstream FILED #770** (2026-07-09, Viswa-approved).
 Local pg for dev-box runs: `pg_ctl -D <scratch>/pg16 -o "-p 5459 -c unix_socket_directories=/tmp/wiopg"` (harness run-with-postgres.sh needs root chown; bypass it).
 
 ## Standing-pool grind — plan (resume here post-compaction)

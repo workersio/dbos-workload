@@ -1,7 +1,8 @@
 # Dossier — e-031: write_stream from a step is not exactly-once
 
-**Status: DRAFT — READY TO FILE, HELD for Viswa's explicit go.** Do NOT file
-upstream without it.
+**Status: FILED upstream #770** (2026-07-09, `viswa-abe`, Viswa-approved).
+https://github.com/dbos-inc/dbos-transact-py/issues/770 — record:
+`.workers/issues/E-031-stream-step-oaoo-filed-770.md`.
 
 ## Proposed upstream issue
 
