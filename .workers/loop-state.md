@@ -86,11 +86,24 @@ re-fires row 4). Recommend (b) unless directed to grind the standing pool.
   file e-028 upstream (Viswa's call) — keep strengthening the dossier draft
   (`.workers/dossiers/e-028-gc-orphan-oaoo.md`) so it's ready on his go.
 
-## Open decision (Viswa)
+## ACTIVE TASKS (post-compaction resume here)
 
-- **e-028** filing: RED finding, now with a public-API-triggered variant that
-  removes the white-box objection. Dossier draft maintained at
-  `.workers/dossiers/e-028-gc-orphan-oaoo.md`; NOT filed.
+- **e-028 FILING — APPROVED by Viswa (GO).** File on `dbos-inc/dbos-transact-py`
+  via `gh` as **viswa-abe**. ONE issue covering BOTH variants (sys-db-side partial
+  GC + app-db-batch partial failure): partial GC orphans `transaction_outputs`,
+  reused workflow id replays the dead step output instead of running fresh.
+  Ordinary-user framing, ZERO product vocab, standalone repro in collapsed
+  `<details>` (style of #767/#768). **MUST verify the repro runs standalone
+  (`pip install dbos` + postgres) before posting** — a subagent is building+verifying
+  it (agent `ab835809fa331a43e`); check released-vs-main version reproducibility.
+  After filing: record issue # in `.workers/issues/` + here, then resume standing pool.
+  Draft: `.workers/dossiers/e-028-gc-orphan-oaoo.md`.
+- **publish.py BLOCKED** — crashes intermittently at `image_commit()` when
+  `wio projects get` returns `preparation.currentImage: null` (transient during
+  any in-flight prepare). Needs a None-guard + retry. Publication of the 23 done
+  explorations is PENDING. (Being patched.)
+- **standing-pool scout** running (agent `a014f5a57b64e1206`) → seeds `backlog.md`,
+  then attack top-first with v0.6.0 oracle-plane workloads.
 
 ## Standing-pool grind — plan (resume here post-compaction)
 

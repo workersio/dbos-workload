@@ -102,7 +102,11 @@ def image_commit() -> str | None:
     )
     if result.returncode != 0:
         raise SystemExit(f"projects get failed:\n{result.stderr or result.stdout}")
-    image = json.loads(result.stdout)["preparation"]["currentImage"]
+    # `preparation` and `currentImage` are transiently null while a prepare is
+    # in flight — treat that as "no image yet" so the caller prepares + polls,
+    # instead of crashing mid-publish.
+    prep = json.loads(result.stdout).get("preparation") or {}
+    image = prep.get("currentImage")
     return image["commitSha"] if image else None
 
 
