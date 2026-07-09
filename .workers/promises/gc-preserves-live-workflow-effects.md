@@ -22,19 +22,26 @@ explorations:
       transaction fresh (new side effect, fresh output), not replay the
       orphaned dead output. Baseline control: after a FULL GC the reused id
       also executes fresh.
-    status: ready
-    result: null
-    reason: null
+    status: done
+    result: red
+    reason: >-
+      Confirmed on cloud (run 01KX460BYM2JHVTJKT2XBQE4WN, commit fe68c86):
+      after a partial GC (sys-db workflow_status deleted, app-db
+      transaction_outputs orphaned) a workflow reusing the collected id
+      returned the dead workflow's stale output (result-10) and skipped its
+      own body (effects_n20=0). Data-correctness / OAOO violation in #751.
+      Control case (full GC) executes fresh. Finding candidate — upstream
+      filing held for human triage.
     workload: workloads/gc-orphan-oaoo/gc_orphan_oaoo_workload.py
     command: .workers/run-with-postgres.sh .workers/python-runtime.sh .workers/workloads/gc-orphan-oaoo/gc_orphan_oaoo_workload.py --rung rung-001-gc-orphan-oaoo --all-cases --sequential
     faults: []
     depth: 1
     timeout: 600
     mem: 2048
-    replay: null
+    replay: "run 01KX460BYM2JHVTJKT2XBQE4WN — case-002 p3 FAIL (outcome=returned:result-10, effects_n20=0); case-001 control green. Evidence: runs/E-028.md"
     freshness: new-current
     reported: null
-    published: null
+    published: pending
 ---
 
 # Garbage collection never resurrects dead step results

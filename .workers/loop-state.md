@@ -18,8 +18,8 @@ skill-native dispatcher ledger. Spec tree + this file = the loop.
 
 | Field | Value |
 |---|---|
-| loops run this session | 1 |
-| workloads run this session | 0 (executor in flight) |
+| loops run this session | 2 |
+| workloads run this session | 1 |
 | loop cap (rail) | 100 |
 | workload cap (rail) | 250 |
 | no-new-information streak | 0 |
@@ -27,12 +27,15 @@ skill-native dispatcher ledger. Spec tree + this file = the loop.
 
 ## In-flight
 
-- executor: `e-028` / `rung-001-gc-orphan-oaoo` — GC two-phase orphan → stale
-  OAOO replay. Workload build + local sanity in progress; cloud draft run next.
+- none. `e-028` complete: **RED finding candidate** confirmed on cloud
+  (run `01KX460BYM2JHVTJKT2XBQE4WN`, p3 FAIL). See `runs/E-028.md`.
 
 ## Re-entry
 
-- re-entry: none pending.
+- re-entry: `partial-gc-orphan-reuse` → **switch** — corridor RED-harvested as a
+  finding; upstream filing held for human triage. Backlog L1 done; a same-path
+  GC sibling (app-db batched-loop partial failure / GC-vs-recovery) bumps up. Next
+  ready executor corridor: backlog **L2 debounce-concurrent-coalescing** (#752).
 
 ## Triggers
 
