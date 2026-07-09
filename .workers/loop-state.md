@@ -67,10 +67,41 @@ areas — mostly harvested green, lower value), or (b) **await new target commit
 (the fault-library workstream keeps pushing to origin/main; a code-touching commit
 re-fires row 4). Recommend (b) unless directed to grind the standing pool.
 
+## OPERATING DIRECTIVES (v0.6.0 — 2026-07-09, survive compaction)
+
+- **Universal oracle plane — every NEW workload MUST carry:** (1) liveness
+  watchdog, (2) terminal-state sweep, (3) `durawatch` manifest where effects are
+  acked, (4) fault timing via `crashclock` declared spaces, (5) async-parity
+  drivers where the API has async forms. Import from `.workers/lib/`
+  (crashclock, durawatch, genlib, interleave; see `.workers/lib/README.md`).
+  Conventions: declared spaces not magic constants; determinism; **anti-vacuity
+  floors — a case that never armed its fault / acked too few effects is VOID not
+  green**; each oracle has a selftest that can go RED (`ORACLE_SELFTEST`).
+  Dependency services via `.workers/recipes/` (exit 44 = setup-block, never a
+  product finding).
+- **Aim discipline:** do NOT stop while any above-threshold backlog row is
+  un-attacked — attack it, or demote it with a recorded reason.
+- **Decisions in force:** (a) grind the STANDING POOL now (do not wait for new
+  commits); (b) publish done explorations via `.workers/publish.py`; (c) do NOT
+  file e-028 upstream (Viswa's call) — keep strengthening the dossier draft
+  (`.workers/dossiers/e-028-gc-orphan-oaoo.md`) so it's ready on his go.
+
 ## Open decision (Viswa)
 
 - **e-028** filing: RED finding, now with a public-API-triggered variant that
-  removes the white-box objection. Draft-a-dossier is ready on his go; not filed.
+  removes the white-box objection. Dossier draft maintained at
+  `.workers/dossiers/e-028-gc-orphan-oaoo.md`; NOT filed.
+
+## Standing-pool grind — plan (resume here post-compaction)
+
+Diff-directed batch done. Now row-6 producer on the standing pool: refresh the
+scout fan-out over `work-items/overview.md` areas, promote above-threshold
+corridors into `backlog.md`, attack top-first. NEW workloads carry the v0.6.0
+oracle plane above. Candidate high-value angles not yet attacked with the new
+plane: recovery×GC join (durawatch across recover_pending), queue dequeue-crash
+fault-timing (crashclock op-index kill), notification/event durability
+(durawatch delay ladder), datasource OAOO under dependency restart
+(crashclock restart_dependency). Ground each before asserting.
 
 ## Findings this session
 
