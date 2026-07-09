@@ -1,7 +1,7 @@
 ---
 key: scheduler-debouncer-timing
 title: Scheduler & debouncer timing
-description: Scheduled and debounced work fires predictably: exactly-once execution across concurrent bounces on one key, latest-input-wins, and no silent drop, duplicate, or per-key executor starvation.
+description: "Scheduled and debounced work fires predictably: exactly-once execution across concurrent bounces on one key, latest-input-wins, and no silent drop, duplicate, or per-key executor starvation."
 order: 110
 ---
 
