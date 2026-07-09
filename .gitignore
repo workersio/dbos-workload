@@ -178,3 +178,7 @@ cython_debug/
 
 # Sqlite
 *.sqlite
+
+# wio workload-harness library is source, not a build artifact
+!.workers/lib/
+!.workers/lib/**
