@@ -17,10 +17,10 @@ Severity weights: data-loss 4 · correctness 3 · availability 2 · wrong-error 
 
 | id | title | sev | dossier | repro | verified-on | note |
 |----|-------|:---:|---------|-------|-------------|------|
+| **e-032** | **`DBOS.send` from inside a step is not exactly-once — delivers the message once per step retry** | **3** | `dossiers/e-032.md` | `dossiers/e-032-repro.py` | **dbos 2.26.0 + main ✅** | **LIVE on release AND main — novel, unfixed. Highest value.** New (scout). |
 | e-024 | Invoking a completed **async** workflow re-executes its function body (sync path does not) | 3 | `dossiers/e-024.md` | `dossiers/e-024-repro.py` | dbos 2.26.0 ✅ | live on release; **fixed on main** — heads-up value |
 | e-023 | SQLite datasource: transient `database is locked` during the OAOO pre-check fails the workflow permanently instead of retrying | 2 | `dossiers/e-023.md` | `dossiers/e-023-repro.py` | dbos 2.26.0 ✅ | live on release; **fixed on main** (#763-era) — heads-up value |
-| e-025 | _packaging — verifying on released + resolving the contract question_ | 2? | _pending_ | _pending_ | _pending_ | possible intended timeout semantics |
-| _new scout candidates_ | _pending scout pass_ ||||||
+| e-025 | _packaging — verifying on released + resolving the contract question (possible intended timeout semantics)_ | 2? | _pending_ | _pending_ | _pending_ | may be #718 trap — judgment pending |
 
 ## NOT sendable — fixed in released 2.26.0 or not standalone-reproducible
 
