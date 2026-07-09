@@ -25,8 +25,15 @@ if [ "${WIO_BUILD_LOG_CAPTURED:-0}" != "1" ]; then
     exit 0
   else
     status=$?
-    cat "${BUILD_STDOUT}" >&2
+    # failureBuildLogPreview only keeps the START of this dump — put the
+    # useful part (stderr + stdout tail) first, full stdout last.
+    echo "=== BUILD FAILED exit=${status} at $(date -u +%Y-%m-%dT%H:%M:%SZ) ===" >&2
+    echo "--- stderr ---" >&2
     cat "${BUILD_STDERR}" >&2
+    echo "--- stdout tail ---" >&2
+    tail -c 3000 "${BUILD_STDOUT}" >&2
+    echo "--- full stdout ---" >&2
+    cat "${BUILD_STDOUT}" >&2
     exit "${status}"
   fi
 fi
