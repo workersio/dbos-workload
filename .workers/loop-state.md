@@ -65,12 +65,33 @@ and run the workload via `.workers/python-runtime.sh` directly (run-with-postgre
 needs root chown). **Never edit tracked files while publish.py runs — it needs a
 clean+pushed tree per create.**
 
+## SESSION RESUME (2026-07-10, /goal continuous) — read this first
+
+**e-032 oracle-plane re-entry RESOLVED.** Built the full v0.6.0 oracle-plane
+workload `.workers/workloads/send-step-oaoo/send_step_oaoo_workload.py` (mirrors
+e-031 stream-step-oaoo). **CLOUD-CONFIRMED RED** on the fork image: exploration
+`nd7egj5bq47xxtj3q25tkhn2vh8a9js9`, project `kn71mb4p…`, branch main `9efd60b`,
+depth 3. case-001 control GREEN (copies=1); case-002 step-sync + case-003
+step-async RED (copies=3, received=3, async parity via `DBOS.send_async`);
+durawatch mutation; crashclock K=3; terminal SUCCESS; selftest RED (local).
+Run record `../runs/E-032.md`; work-item rung `done_red`. Filing HELD (Viswa
+batch-sends). Two gotchas recorded: (a) root `.gitignore:184 !.workers/lib/**`
+un-ignores lib pycache → added `.workers/.gitignore lib/__pycache__/`; (b) cloud
+command MUST wrap `.workers/run-with-postgres.sh` or the guest has no pg (:5432
+refused → SETUP-BLOCK). HEAD `9efd60b`, pushed, image prepared+matched.
+
+After e-032: the re-entry queue's remaining items (partial-gc-orphan-reuse =
+RED-harvested/held; concurrent-bounce-coalescing = green/decayed) are not fresh
+executor work. Diff frontier `a43fead` == last-scanned (no new dbos/ source
+commits). Next dispatcher decision: standing-pool scout refresh (row 6) OR await
+new target commits (row 4). See "Dispatcher status → row 1 boundary" below.
+
 ## Counters
 
 | Field | Value |
 |---|---|
-| loops run this session | 6 |
-| workloads run this session | 6 (e-028 x2 incl app-db variant; e-029 x2; e-030) |
+| loops run this session | 1 (e-032 executor: oracle-plane build + cloud replay) |
+| workloads run this session | 1 (e-032 send-step-oaoo, cloud x3 seeds) |
 | loop cap (rail) | 100 |
 | workload cap (rail) | 250 |
 | no-new-information streak | 0 |
