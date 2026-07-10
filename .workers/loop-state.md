@@ -108,6 +108,26 @@ the current frontier is exhausted.** Resume triggers: (a) new dbos/ source commi
 standing-pool grind (S5 notify-loss availability corridor is parked at 5 < 6, the
 next-highest residual). Filing of held candidates (e-032 etc.) stays with Viswa.
 
+## SESSION RESUME (2026-07-10, Wave 2 re-arm) — read this first
+
+**FLEET-STOP for the `a43fead` frontier was VALID and is now SUPERSEDED by a
+Viswa-approved Wave 2 directive: re-arm with CHANGED AXES, not the same groove.**
+Four axes: (1) fault-matrix sweep of `.workers/fault/net/` across top harvested
+promise areas — NEW workloads fault-engaged by default; (2) UNPARK S5
+notify-loss-db-reconnect (availability) — threshold waived this wave; (3)
+depth/volume: re-run strongest OAOO-family workloads at depth ≥20 with seed sweeps
+(e-031/e-032 ran depth 1/3); (4) genlib input-generation campaign on
+serialization/input surfaces. Ranked corridor pool **W2-1..W2-5** written to
+`backlog.md` §Wave 2. Dispatcher re-fired → executor mode, top-first from W2-1.
+
+Executor gate re-verified this wave: `wio 0.4.0` cloud; worker
+`worker-62f0f9ec…` ONLINE 16 slots (us-east-1); `simulate create` supports
+`--faults`/`--depth`/`--seed` (total = depth×faults; bare fault names + repo-relative
+paths resolve in `.workers/fault/`). Faults shape guest Postgres :5432 — matches the
+cloud guest pg, so fault-engaged OAOO runs are viable. Project `kn71mb4p…`.
+**Gotcha (still in force):** cloud command MUST wrap `.workers/run-with-postgres.sh`
+or the guest has no pg; keep tree clean+pushed while prepare/publish runs.
+
 ## Counters
 
 | Field | Value |

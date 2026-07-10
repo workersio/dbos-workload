@@ -9,6 +9,34 @@ coverage exhausted (dispatcher row 1).
 Source of this batch: diff-directed scan of `9922c1d..a43fead` (#752 debounce,
 #751 incremental GC, #763 behavior consistency), corroborated by candidate-scout.
 
+## Wave 2 re-arm — CHANGED AXES (Viswa-approved 2026-07-10, threshold WAIVED for this wave)
+
+The `a43fead` frontier was coverage-exhausted along the OAOO/diff groove. Wave 2
+re-arms along **orthogonal axes** so we probe a different failure surface, not the
+same corridor deeper: (1) **fault-matrix** — sweep `.workers/fault/net/`
+(db-flaky / db-slow / db-burst-loss / kafka-flaky) across the top harvested promise
+areas; every NEW Wave-2 workload runs **fault-engaged by default**. (2) **unpark S5**
+notify-loss-db-reconnect (availability) — promotion threshold waived. (3)
+**depth/volume** — re-run the strongest OAOO-family workloads at depth ≥20 with seed
+sweeps (e-031/e-032 only ever ran depth 1/3). (4) **genlib** input-generation campaign
+on serialization/input surfaces (census-heaviest strategy class, barely exercised).
+
+Ranked, top-first execution order:
+
+| # | corridor | axes | area / workload | oracle & fault | severity×likelihood | score | state |
+|---|----------|------|-----------------|----------------|---------------------|------:|-------|
+| W2-1 | **oaoo-under-dbfault-depthsweep** — re-run send-step (e-032) + stream-step (e-031) OAOO **fault-engaged** at depth 20. Two questions: (a) does the GUARDED workflow-context CONTROL stay copies==1 under transient DB loss/reconnect, or does a fault-induced recovery re-execution break the exactly-once guard on the *protected* path (NEW red on a green path — high value)? (b) does the step-path duplication widen beyond K under reconnect churn (copies>K)? | 1+3 | send-step-oaoo / stream-step-oaoo | existing proven exactly-once + durawatch oracles; `--faults db-flaky,db-burst-loss --depth 20` | correctness/data 3–4 × med | **12** | **ready** (workloads exist; near-zero build cost) |
+| W2-2 | **recovery-double-exec-burstloss** — recovery-db-faults under `db-burst-loss` (bursty 30% loss corr 0.9 = repeated reconnect = double-recovery, the E-002 class). Fork has #744 fix → expected GREEN regression guard, but confirms the fix holds under REAL packet-loss micro-outages, not a mocked fault. | 1 | recovery-db-faults | durawatch across recover_pending; `--faults db-burst-loss --depth 20` | data-loss 4 × low-med | **10** | ready |
+| W2-3 | **notify-loss-db-reconnect (S5, UNPARKED)** — LISTEN/NOTIFY dropped across DB reconnect → waiter never re-scans maps → stalls to `_notification_fallback_polling_interval=60s`. NEW workload: recipient waits on recv/get_event, inject `db-burst-loss` during the wait window; durawatch(latency) asserts delivery latency stays bounded (a stall to ~60s = availability red). crashclock.restart_dependency as the harder variant. | 1+2 | message-event-cancellation (new: notify-reconnect-latency) | durawatch latency ladder + restart_dependency; `--faults db-burst-loss` | availability 2 × med | **8** (threshold-waived) | ready |
+| W2-4 | **genlib-serialization-input-fidelity** — genlib differential harness on the serialization/input surfaces: seeded input generation over declared type/serialization axes, differential oracle that DBOS workflow input persistence round-trips type+value, and error-class fidelity across the serialize/deserialize boundary. Census-heaviest strategy class, barely exercised. | 4 | portable-input-type-fidelity / serialization-error-fidelity | genlib (turso_genfuzz shape); baseline + `db-flaky` | correctness 3 × med | **8** | ready |
+| W2-5 | **timing-under-dbslow** — debounce-coalescing + queue-composed-controls under `db-slow` (600±400ms): does the DELAYED→ENQUEUED debounce flip stay exactly-once when the system DB is slow (dedup window stretches under latency)? does queue concurrency accounting stay bounded when dequeue txns are slow? | 1 | scheduler-debouncer-timing / queue-composed-controls | existing workloads + `--faults db-slow --depth 20` | correctness 3 × low-med | **6** | ready |
+
+Wave-2 discipline: fault-engaged runs are depth ≥20 by the seed-sensitivity rule
+(netem realization varies per seed → genuine coverage, not theater — a plain
+no-fault depth sweep of these deterministic oracles WOULD be theater, per E-032's
+own note). Setup death under a fault (exit 44 / SETUP-BLOCK) is not a finding; if
+db-burst-loss (30%) kills the pg setup phase, fall back to db-flaky (10%).
+
 ## Active (above threshold)
 
 | # | corridor | commit | area | severity×likelihood | score | state |
