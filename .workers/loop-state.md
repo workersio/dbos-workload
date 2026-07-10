@@ -83,8 +83,30 @@ refused → SETUP-BLOCK). HEAD `9efd60b`, pushed, image prepared+matched.
 After e-032: the re-entry queue's remaining items (partial-gc-orphan-reuse =
 RED-harvested/held; concurrent-bounce-coalescing = green/decayed) are not fresh
 executor work. Diff frontier `a43fead` == last-scanned (no new dbos/ source
-commits). Next dispatcher decision: standing-pool scout refresh (row 6) OR await
-new target commits (row 4). See "Dispatcher status → row 1 boundary" below.
+commits).
+
+**PRODUCER SCOUT this cycle — OAOO sibling-gap family EXHAUSTED, L1b RESOLVED →
+row-1 coverage-exhausted.** Ran a source-grounded scout of the sibling-gap
+corridor that produced e-031/e-032: the only durable-write primitives splitting on
+`is_workflow()` with distinct `_from_step`/`_from_workflow` persistence are
+`write_stream` (RED e-031), `send` (RED e-032), and `set_event` — and `set_event`
+is **NOT a finding** (both writes are `on_conflict_do_update` UPSERTs keyed on
+stable columns incl. `function_id`; a same-`function_id` step retry overwrites the
+same row → idempotent by construction, guard absence compensated). Other
+`is_workflow()` sites (`_core.py` 1891/1936/2000) are generic step-invocation
+dispatch, not durable writes. Family closed (backlog §OAOO sibling-gap).
+Also ground-demoted the last above-threshold backlog row **L1b**: its app-db-batch
+part = DONE (e-028 rung-002, cloud `01KX4BZJ…`); its GC-vs-recovery race =
+non-finding (`garbage_collect` `gc_filter` excludes PENDING/ENQUEUED/DELAYED → GC
+only deletes TERMINAL, recovery only re-enqueues PENDING/ENQUEUED → disjoint status
+sets). L2→e-029 GREEN, L3→e-030 GREEN (reconciled in backlog).
+
+**→ Dispatcher row-1 boundary: no above-threshold un-attacked corridor, no
+ready/in-flight/re-entry work, no diff trigger (a43fead==last-scanned). Coverage of
+the current frontier is exhausted.** Resume triggers: (a) new dbos/ source commits
+(rebase fork onto newer upstream) → row-4 diff-directed; (b) a directed deeper
+standing-pool grind (S5 notify-loss availability corridor is parked at 5 < 6, the
+next-highest residual). Filing of held candidates (e-032 etc.) stays with Viswa.
 
 ## Counters
 

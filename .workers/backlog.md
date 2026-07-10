@@ -14,9 +14,9 @@ Source of this batch: diff-directed scan of `9922c1d..a43fead` (#752 debounce,
 | # | corridor | commit | area | severity×likelihood | score | state |
 |---|----------|--------|------|---------------------|------:|-------|
 | L1 | **gc-orphan-oaoo** — GC two-phase orphan (`workflow_status` deleted, `transaction_outputs` orphaned) → reused workflow id replays dead workflow's step output instead of executing fresh | #751 | garbage-collection-durability | correctness/data 3–4 × high | 12 | **DONE → e-028 RED finding** (cloud `01KX460BYM2JHVTJKT2XBQE4WN`; filing held for triage) |
-| L1b | **gc-appdb-batch-partial / gc-vs-recovery** — same-path sibling bumped by L1's red: app-db's own batched delete loop failing partway (PR's resumable test only faults the sys-db side) orphans a different row set; and GC racing concurrent recovery/status transitions. Same OAOO oracle as e-028, distinct trigger. | #751 | garbage-collection-durability | correctness/data 3–4 × med-high | 10 | ready-to-draft (deeper rung on e-028) |
-| L2 | **debounce-concurrent-coalescing** — M concurrent bouncers on one key across the DELAYED→ENQUEUED flip: exactly-once execution + latest-input + no silent drop, on the new `debounce_delayed_workflow` SQL protocol | #752 | scheduler-debouncer-timing | correctness 3 × high | 9 | ready-to-draft (next executor) |
-| L3 | **outcome-pipeline-async-replay** — `_core.workflow_wrapper` restructured to `.wrap(get_wf_invoke).intercept(check_and_init)`; concurrent same-id async invocations + already-completed async replay (recorded result AND recorded error re-raise) across `asyncio.to_thread` threads | #763 | workflow-invoke-outcome-pipeline (new) | correctness 3 × med-high | 8 | needs producer design |
+| L1b | **gc-appdb-batch-partial / gc-vs-recovery** — same-path sibling bumped by L1's red: app-db's own batched delete loop failing partway (PR's resumable test only faults the sys-db side) orphans a different row set; and GC racing concurrent recovery/status transitions. Same OAOO oracle as e-028, distinct trigger. | #751 | garbage-collection-durability | correctness/data 3–4 × med-high | ~~10~~ → **done+demoted** | **RESOLVED/DEMOTED (2026-07-10).** (a) app-db-batch partial-failure = DONE — e-028 rung-002 public-API app-db-batch variant, cloud-confirmed `01KX4BZJHVB2V4MKPA9FDY08JE`. (b) GC-vs-recovery race = **NOT a distinct finding**: `garbage_collect` `gc_filter` (`_sys_db.py:~4415`) excludes `status IN (PENDING, ENQUEUED, DELAYED)`, so GC only deletes TERMINAL workflows; recovery (`recover_pending_workflows`, `:958-972`) only re-enqueues PENDING/ENQUEUED via a status-guarded UPDATE. Disjoint status sets → GC cannot delete a row recovery is actively re-executing. The only real harm (orphaned app-db outputs on a reused id) IS e-028 (filed #769). Nothing left above threshold. |
+| L2 | **debounce-concurrent-coalescing** — M concurrent bouncers on one key across the DELAYED→ENQUEUED flip: exactly-once execution + latest-input + no silent drop, on the new `debounce_delayed_workflow` SQL protocol | #752 | scheduler-debouncer-timing | correctness 3 × high | ~~9~~ → **GREEN** | **COVERED — e-029 concurrent-coalescing GREEN regression** (cloud `01KX47FF2KHTYPY50VCVFSP6BX`). Exactly-once + latest-input held. |
+| L3 | **outcome-pipeline-async-replay** — `_core.workflow_wrapper` restructured to `.wrap(get_wf_invoke).intercept(check_and_init)`; concurrent same-id async invocations + already-completed async replay (recorded result AND recorded error re-raise) across `asyncio.to_thread` threads | #763 | workflow-invoke-outcome-pipeline (new) | correctness 3 × med-high | ~~8~~ → **GREEN** | **COVERED — e-030 invoke-pipeline GREEN regression** (cloud `01KX4BVNZ14SCYC29KYRH5BY19`). |
 | L4 | **debounce-post-deadline-input-mutation** — once `delay_until` is capped at `debounce_deadline_epoch_ms`, later bounces still overwrite `inputs` while the delay stays pinned | #752 | scheduler-debouncer-timing | — | — | **RETIRED (observational)** — source grounding: `debounce_timeout_sec` caps only delay TIME (`delay_until = min(delay, deadline)`), no documented guarantee that inputs freeze at the deadline. "Latest input wins, fire by deadline" is the contract. Asserting input-freeze would repeat the #718 unstated-policy trap. Not a finding. |
 
 ## Standing-pool corridors (scout refresh 2026-07-09, v0.6.0 oracle plane)
@@ -33,6 +33,27 @@ liveness/terminal sweeps + async parity; anti-vacuity VOID floors; selftest).
 | S5 | **notify-loss-db-reconnect** — LISTEN/NOTIFY dropped across DB restart → 60s fallback stall | message-event-cancellation | reconnect re-issues LISTEN (`_sys_db_postgres:159`) but never re-scans maps; NOTIFY during down-window lost; waiter stalls to `_notification_fallback_polling_interval=60s`. Availability. | crashclock.restart_dependency + durawatch(latency) | 5 | parked (below threshold; only if S1-4 claimed) |
 
 Avoid (scout): re-running stream WORKFLOW-context writes (harvested green); GC-cascade-of-events (ON DELETE CASCADE by design, policy-ambiguous); any debounce input-freeze (#718 trap).
+
+### OAOO sibling-gap family — EXHAUSTED (scout 2026-07-10)
+
+The "recorded-operation guard present on the workflow path, absent on the
+step/client path" corridor is source-closed. The ONLY durable-write primitives
+that split on `is_workflow()` and route to distinct persistence methods
+(`grep 'def .*_from_(step|workflow)' _sys_db.py` + `is_workflow()` dispatch in
+`_core.py`) are:
+- **`write_stream`** → RED (e-031): `write_stream_from_step` offset=`max+1`, no
+  guard → duplicate rows.
+- **`send`** → RED (e-032, cloud-confirmed): step path passes `workflow_id=None`,
+  `_send_bulk_txn` OAOO block skipped, fresh `message_uuid` → duplicate rows.
+- **`set_event`** → **NOT a finding**: `set_event_from_step` also omits the guard
+  BUT both writes are `on_conflict_do_update` UPSERTs keyed on stable columns
+  (`workflow_events`(workflow_uuid,key); `workflow_events_history`(workflow_uuid,
+  key,function_id)). A step retry re-runs under the same `function_id` → overwrites
+  the same row → idempotent by construction. The current-value observable is never
+  duplicated. Guard absence is compensated by the UPSERT key design.
+The other `is_workflow()` sites in `_core.py` (1891/1936/2000) are the generic
+step-invocation dispatch ("run as step if in a workflow, else plain function"),
+not durable-write primitives. Family closed — do not re-scout.
 
 ## Below threshold / parked
 
