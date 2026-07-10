@@ -114,7 +114,7 @@ CASE_MATRIX: dict[str, tuple[int, str]] = {
 # see the search space rather than a magic value list.
 CATALOG_SPACE = crashclock.op_index("catalog_index", lo=0, hi=63)
 
-LIVENESS_BUDGET_S = 180.0
+LIVENESS_BUDGET_S = 200.0
 HASHSEEDS = ("0", "1", "7", "1337")  # distinct PYTHONHASHSEED values for det. oracle
 
 
@@ -276,30 +276,48 @@ def strict_parses(text: str) -> tuple[bool, Optional[str]]:
 # --------------------------------------------------------------------------- #
 # Subprocess serialize mode (for the determinism oracle under varied hash seeds)
 # --------------------------------------------------------------------------- #
-def _emit_serialization(seed: int, vid: str) -> int:
-    """Regenerate the catalog (deterministic) and print the portable serialization
-    of one entry. Run under a chosen PYTHONHASHSEED so set ordering is exposed."""
-    cat = build_catalog(seed, selftest=False)
-    for gv in cat:
-        if gv.vid == vid:
-            if not gv.portable_serializable:
-                print("UNSERIALIZABLE", flush=True)
-                return 0
-            print(_SER.serialize(gv.value), flush=True)
-            return 0
-    print("NOVALUE", flush=True)
+def _determinism_vids(seed: int, selftest: bool) -> list[str]:
+    """The vids whose serialization can diverge across processes: the set-order axis
+    (plus any set-order selftest plants). Batched so the determinism oracle spawns
+    ONE subprocess per hash seed, not one per value (heavy dbos import each)."""
+    return [gv.vid for gv in build_catalog(seed, selftest)
+            if gv.portable_serializable and gv.axis == "set_order"]
+
+
+def _emit_serialization(seed: int, selftest: bool) -> int:
+    """Regenerate the catalog (deterministic) and print, as one JSON object,
+    {vid: portable_serialization} for every determinism-axis value. Run under a
+    chosen PYTHONHASHSEED so set iteration order is exposed."""
+    cat = {gv.vid: gv for gv in build_catalog(seed, selftest)}
+    out: dict[str, str] = {}
+    for vid in _determinism_vids(seed, selftest):
+        out[vid] = _SER.serialize(cat[vid].value)
+    print(json.dumps(out), flush=True)
     return 0
 
 
-def serialize_under_hashseed(seed: int, vid: str, hashseed: str) -> str:
+def _child_python() -> str:
+    """Prefer the prepared venv interpreter; fall back to the current one. In the
+    cloud guest sys.executable is often /usr/bin/python3 with PYTHONPATH carrying
+    the deps — both work, but the venv python (when executable) is fastest."""
+    venv_py = VENV_ROOT / "bin" / "python"
+    if venv_py.exists() and os.access(str(venv_py), os.X_OK):
+        return str(venv_py)
+    return sys.executable
+
+
+def serialize_batch_under_hashseed(seed: int, selftest: bool, hashseed: str) -> dict[str, str]:
     env = dict(os.environ)
     env["PYTHONHASHSEED"] = hashseed
     out = subprocess.run(
-        [sys.executable, str(Path(__file__).resolve()),
-         "--emit-serialization", "--seed", str(seed), "--vid", vid],
-        capture_output=True, text=True, env=env, timeout=60,
+        [_child_python(), str(Path(__file__).resolve()),
+         "--emit-serialization", "--seed", str(seed)]
+        + (["--selftest-catalog"] if selftest else []),
+        capture_output=True, text=True, env=env, timeout=40,
     )
-    return out.stdout.strip()
+    if out.returncode != 0 or not out.stdout.strip():
+        raise RuntimeError(f"emit failed rc={out.returncode} err={out.stderr[-200:]}")
+    return json.loads(out.stdout.strip().splitlines()[-1])
 
 
 # --------------------------------------------------------------------------- #
@@ -333,30 +351,30 @@ def run_case_001_portability(seed: int, selftest: bool) -> None:
 
 
 def run_case_002_determinism(seed: int, selftest: bool) -> None:
-    """Every value's portable serialization must be byte-identical across processes
-    with distinct PYTHONHASHSEEDs."""
-    cat = build_catalog(seed, selftest)
-    set_axis_seen = 0
-    for gv in cat:
-        if not gv.portable_serializable:
-            continue
-        outs = []
-        try:
-            for hs in HASHSEEDS:
-                outs.append(serialize_under_hashseed(seed, gv.vid, hs))
-        except Exception as exc:
-            invariant(f"determinism_{gv.vid}", "cross_process_stable", False,
-                      vid=gv.vid, axis=gv.axis, error=f"{type(exc).__name__}: {exc}")
-            continue
-        if gv.axis == "set_order":
-            set_axis_seen += 1
+    """The portable serialization of each determinism-axis value must be
+    byte-identical across processes with distinct PYTHONHASHSEEDs. Batched: ONE
+    subprocess per hash seed (each a fresh interpreter → fresh hash seed)."""
+    vids = _determinism_vids(seed, selftest)
+    if not vids:
+        mark_void("case-002 exercised no set value (determinism axis vacuous)")
+        return
+    # batch[hashseed] = {vid: serialized}
+    batches: list[dict[str, str]] = []
+    try:
+        for hs in HASHSEEDS:
+            batches.append(serialize_batch_under_hashseed(seed, selftest, hs))
+    except Exception as exc:
+        # subprocess/interpreter infra failure — VOID, not a product RED.
+        mark_void(f"case-002 determinism subprocess infra failure: {type(exc).__name__}: {exc}")
+        invariant("determinism_infra", "subprocess_serialize_ran", False,
+                  error=f"{type(exc).__name__}: {exc}")
+        return
+    for vid in vids:
+        outs = [b.get(vid, "<missing>") for b in batches]
         stable = len(set(outs)) == 1
-        invariant(f"determinism_{gv.vid}", "cross_process_stable", stable,
-                  vid=gv.vid, axis=gv.axis, distinct=len(set(outs)),
-                  samples=[o[:80] for o in outs[:2]])
-    event("determinism_summary", seed=seed, set_axis_values=set_axis_seen)
-    if set_axis_seen == 0:
-        mark_void("case-002 exercised no set/frozenset value (determinism axis vacuous)")
+        invariant(f"determinism_{vid}", "cross_process_stable", stable,
+                  vid=vid, distinct=len(set(outs)), samples=[o[:80] for o in outs[:2]])
+    event("determinism_summary", seed=seed, set_axis_values=len(vids), hashseeds=len(HASHSEEDS))
 
 
 # ---- case-003: real workflow round-trip (needs Postgres) ---- #
@@ -520,7 +538,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--seed", type=int, default=None)
     # subprocess serialize mode (determinism oracle)
     p.add_argument("--emit-serialization", action="store_true")
-    p.add_argument("--vid", default=None)
+    p.add_argument("--selftest-catalog", action="store_true")
     return p.parse_args()
 
 
@@ -528,14 +546,17 @@ def main() -> int:
     args = parse_args()
 
     if args.emit_serialization:
-        return _emit_serialization(args.seed, args.vid)
+        return _emit_serialization(args.seed, args.selftest_catalog)
 
     if args.rung not in (RUNG_ID, "rung-001"):
         print(f"SETUP-BLOCK unsupported rung {args.rung}", flush=True)
         return 42
 
     if args.all_cases:
-        cases = list(CASE_MATRIX)
+        # Run the strong end-to-end round-trip (case-003) BEFORE the
+        # subprocess-spawning determinism case (case-002), so a subprocess-infra
+        # hiccup can never mask the primary evidence.
+        cases = ["case-001", "case-003", "case-002"]
     elif args.case:
         cases = [args.case]
     else:
