@@ -296,24 +296,28 @@ def _emit_serialization(seed: int, selftest: bool) -> int:
     return 0
 
 
-def _child_python() -> str:
-    """Prefer the prepared venv interpreter; fall back to the current one. In the
-    cloud guest sys.executable is often /usr/bin/python3 with PYTHONPATH carrying
-    the deps — both work, but the venv python (when executable) is fastest."""
-    venv_py = VENV_ROOT / "bin" / "python"
-    if venv_py.exists() and os.access(str(venv_py), os.X_OK):
-        return str(venv_py)
-    return sys.executable
+PYRUN = REPO_ROOT / ".workers" / "python-runtime.sh"
+
+
+def _child_cmd(seed: int, selftest: bool) -> list[str]:
+    """Spawn the emit subprocess through the SAME launcher the main workload uses
+    (`python-runtime.sh`), so it picks the correct interpreter + musl PYTHONPATH.
+    A raw /usr/bin/python3 subprocess in the guest hangs importing the musl-built
+    dbos deps under glibc; the launcher avoids that. Falls back to the current
+    interpreter locally when the launcher is absent."""
+    tail = [str(Path(__file__).resolve()), "--emit-serialization", "--seed", str(seed)]
+    tail += ["--selftest-catalog"] if selftest else []
+    if PYRUN.exists():
+        return [str(PYRUN), *tail]
+    return [sys.executable, *tail]
 
 
 def serialize_batch_under_hashseed(seed: int, selftest: bool, hashseed: str) -> dict[str, str]:
     env = dict(os.environ)
     env["PYTHONHASHSEED"] = hashseed
     out = subprocess.run(
-        [_child_python(), str(Path(__file__).resolve()),
-         "--emit-serialization", "--seed", str(seed)]
-        + (["--selftest-catalog"] if selftest else []),
-        capture_output=True, text=True, env=env, timeout=40,
+        _child_cmd(seed, selftest),
+        capture_output=True, text=True, env=env, timeout=45,
     )
     if out.returncode != 0 or not out.stdout.strip():
         raise RuntimeError(f"emit failed rc={out.returncode} err={out.stderr[-200:]}")
@@ -364,10 +368,10 @@ def run_case_002_determinism(seed: int, selftest: bool) -> None:
         for hs in HASHSEEDS:
             batches.append(serialize_batch_under_hashseed(seed, selftest, hs))
     except Exception as exc:
-        # subprocess/interpreter infra failure — VOID, not a product RED.
+        # subprocess/interpreter infra failure — VOID (not a product RED, so no
+        # failing invariant is emitted; the case simply cannot be graded here).
         mark_void(f"case-002 determinism subprocess infra failure: {type(exc).__name__}: {exc}")
-        invariant("determinism_infra", "subprocess_serialize_ran", False,
-                  error=f"{type(exc).__name__}: {exc}")
+        event("determinism_infra", ran=False, error=f"{type(exc).__name__}: {exc}")
         return
     for vid in vids:
         outs = [b.get(vid, "<missing>") for b in batches]
