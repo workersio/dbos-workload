@@ -194,6 +194,9 @@ fault-timing (crashclock op-index kill), notification/event durability
 
 ## Re-entry
 
+- re-entry: `e-032 step-send-duplication` → **deepen** — build the full
+  oracle-plane workload for e-032 (operator-queued 2026-07-10; the
+  instruction was typed into the prior interactive session but never ran).
 - re-entry: `partial-gc-orphan-reuse` → **switch** (RED-harvested; filing held).
 - re-entry: `concurrent-bounce-coalescing` → **deepen/recal** — green in substance,
   oracle recalibrated for cloud timing; re-run then decay the debounce corridor.
