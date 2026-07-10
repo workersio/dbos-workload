@@ -27,9 +27,26 @@ Depth/seed rationale: the finding is deterministic per case (case-002 varies
 non-determinism; no VM-seed branch). Baseline `--depth 1` is the clean proof;
 `db-flaky` adds the Wave-2 fault axis (robustness, not the primary signal).
 
-## Cloud confirm — [pending]
+## Cloud confirm — PORTABILITY CONFIRMED (determinism local-only)
 
-Command: `.workers/run-with-postgres.sh .workers/python-runtime.sh
-.workers/workloads/serialization-genfuzz/serialization_genfuzz_workload.py --rung
-rung-001-portable-input-serialization-fidelity --all-cases --sequential`.
-Exploration id + verdicts appended on completion.
+Command as above; `--depth 1`, project `kn71mb4p…`, branch main.
+
+- **Portability (case-001) + e2e round-trip (case-003): CLOUD-CONFIRMED RED.**
+  Exploration `nd78s44bvcgdrna4hqk6nt3edd8a98nt` (run `01KX628JKY…`, image
+  `0186a22`): 6 invariants FAIL —
+  `portable_strict_json_float_{nan,inf,ninf}` (serializer) +
+  `roundtrip_strict_json_float_{nan,inf,ninf}` (the STORED `workflow_status.inputs`
+  literally contains `NaN`/`Infinity`/`-Infinity`, workflow terminal SUCCESS).
+  The earlier fault run (`nd76mwss…`, db-flaky) reproduced case-001 identically.
+- **Determinism (case-002): LOCAL-CONFIRMED, cloud VOID.** The oracle spawns a
+  fresh interpreter per `PYTHONHASHSEED` to expose set-iteration order; importing
+  the full `dbos` stack in a guest subprocess takes >45s (cold musl imports) and
+  times out, so the case VOIDs in cloud (batched to 4 spawns + launched via
+  `python-runtime.sh` — still too slow; not a product signal). The determinism
+  RED is rock-solid locally (`distinct=4` across 4 hash seeds; `set_ints` stable).
+  Not iterating further: the primary portability finding is cloud-confirmed and the
+  determinism finding is independently reproducible offline
+  (`python3 …serialization_genfuzz_workload.py --case case-002`).
+
+**e-033 verdict: portability RED cloud-confirmed; determinism RED local-confirmed.**
+Filing HELD for Viswa.
