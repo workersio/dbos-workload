@@ -35,7 +35,14 @@ Deterministic + reproducible offline; a cloud artifact adds little (no fault
 dependency — the trigger-disable is in-workload). Axis-2 (unpark S5) satisfied
 with a concrete, grounded executor result. Filing (if any) stays with Viswa.
 
-Cloud: `.workers/run-with-postgres.sh .workers/python-runtime.sh
-.workers/workloads/notify-reconnect-latency/notify_reconnect_latency_workload.py
---rung rung-001-missed-notify-fallback-latency --all-cases --sequential`
-(exploration id appended if run).
+## Cloud confirm — RED (reproduced in guest)
+
+Exploration `nd7464zdrvzsk2q97sg61ergg18a8jgw` (run `01KX62N5AM…`, image `fa50292`,
+`--depth 1`): case-001 control delivered in **6.345s** (PASS), case-002
+missed-notify in **63.575s** (FAIL) — both delivered (no loss). The ~63.6s ≈ the
+60s fallback interval. Deterministic finding reproduces in cloud.
+
+Note: the cloud control latency (~6.3s) runs closer to the 8s stall floor than
+local (~2s) — the unambiguous signal is the ~60s stall (== fallback interval), a
+10× differential; the floor has thin margin against control-side cloud jitter, so
+read the finding off the ~60s absolute, not the 8s threshold.

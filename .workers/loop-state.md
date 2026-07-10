@@ -128,6 +128,35 @@ cloud guest pg, so fault-engaged OAOO runs are viable. Project `kn71mb4p…`.
 **Gotcha (still in force):** cloud command MUST wrap `.workers/run-with-postgres.sh`
 or the guest has no pg; keep tree clean+pushed while prepare/publish runs.
 
+## WAVE 2 COMPLETE (2026-07-10) — changed-axes sweep, read this first
+
+All five Wave-2 corridors executed. **Two new findings + one strengthening +
+two green robustness confirmations.** Filing of findings HELD for Viswa.
+
+| corridor | axis | result |
+|---|---|---|
+| **W2-1** oaoo-under-dbfault-depthsweep | 1+3 | **STRENGTHEN** — e-031/e-032 reproduce identically under db-flaky + db-burst-loss (76 runs); the GUARDED workflow-context control path holds exactly-once under fault (0/76 breaks) → new under-fault regression-guard. No amplification (copies==K). `runs/W2-1-…` |
+| **W2-4 → e-033** genlib-serialization | 4 | **NEW RED (cloud-confirmed)** — portable JSON serializer emits non-RFC-8259 `NaN`/`Infinity` for float edges; the stored `workflow_status.inputs` carries `NaN` yet the workflow SUCCEEDs (silent). Cloud exp `nd78s44b…`. + determinism: `set`-of-strings serializes non-deterministically across processes (local-confirmed; cloud subprocess too slow → VOID). `work-items/e-033.md` |
+| **W2-3 → e-034** notify-reconnect-latency (S5 unparked) | 1+2 | **RED characterization (cloud-confirmed)** — deterministic (trigger-disable) 60s recv stall on a missed NOTIFY: control 6.3s vs missed 63.6s (cloud exp `nd7464zd…`), no loss. Availability weight 2, documented-fallback → characterization, not finding_candidate. `work-items/e-034.md` |
+| **W2-2** recovery-db-faults | 1 | **GREEN** — rung-001 12/12 SUCCEEDED under db-flaky; #744 recovery fix robust under real packet loss. |
+| **W2-5** debounce (db-slow) | 1 | **GREEN** — coalescing held (4 green, 3 setup-noise). Queue arm not run (low-value follow-on; S3 queue already grounded-demoted; db-slow trips setup on the crash-orchestrating workloads). |
+
+Operational learnings recorded (survive compaction): (a) a RED (exit 1) under an
+active fault is classified `state:failed/failureCategory:fault_model` — same as a
+fault crash; verdicts MUST be parsed from stdout INVARIANT/VERDICT lines
+(`scratchpad/analyze_oaoo.py`), not run state. (b) `wio workloads logs` truncates
+to the tail → rely on the aggregated final `VERDICT:` line. (c) The managed worker
+intermittently wedges (online, 0 ongoing, pending backlog); `wio worker stop`+`start`
+clears it, but orphans queued explorations → cancel + relaunch. (d) Guest
+subprocesses that import the full `dbos` stack take >45s (cold musl imports) — avoid
+per-value subprocess fan-out in cloud workloads. (e) db-slow (600ms) / db-burst-loss
+(30%) intermittently trip pg connect-timeout at setup → exit-44 SETUP-BLOCK (VOID,
+not a finding); db-flaky (10%) is the clean reconnect signal.
+
+**Dispatcher post-Wave-2: changed-axes frontier covered.** No above-threshold
+un-attacked Wave-2 corridor remains; new findings (e-033, e-034) held for Viswa.
+Resume triggers unchanged: new dbos/ source commits, or a further directed wave.
+
 ## Counters
 
 | Field | Value |
