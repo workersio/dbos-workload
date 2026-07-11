@@ -80,7 +80,10 @@ config = {
     "notification_listener_polling_interval_sec": 0.02,
 }
 inst = DBOS(config=config)
-queue = Queue("wio_queue", concurrency=4)
+# Fast queue polling: under the deterministic sandbox each poll sleep fast-forwards
+# virtual time, so the default 1.0s interval makes a multi-actor enqueue request
+# consume tens of virtual seconds and trip the interleave scheduler's step timeout.
+queue = Queue("wio_queue", concurrency=4, polling_interval_sec=0.05)
 DBOS.launch()
 
 _out = threading.Lock()
@@ -160,18 +163,18 @@ def do_enqueue(req):
     results = {}
     for lb, h in handles:
         try:
-            results[lb] = h.get_result()
+            results[lb] = h.get_result(polling_interval_sec=0.05)
         except Exception as e:
             results[lb] = {"_err": repr(e)}
     try:
-        first_res = h_first.get_result()
+        first_res = h_first.get_result(polling_interval_sec=0.05)
     except Exception as e:
         first_res = {"_err": repr(e)}
     if req.get("crash"):
         crash_and_recover(allids)
         wait_terminal(allids, deadline_s=60.0)
         for lb, h in handles:
-            try: results[lb] = DBOS.retrieve_workflow(lb).get_result()
+            try: results[lb] = DBOS.retrieve_workflow(lb).get_result(polling_interval_sec=0.05)
             except Exception: pass
     tasks = {}
     for lb in labels:
