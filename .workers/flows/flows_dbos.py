@@ -143,14 +143,15 @@ def do_enqueue(req):
     except Exception:
         refused = True
     allids = labels + [dd_label]
+    gr_err = {}
     for lb, h in handles:
         try: h.get_result()
-        except Exception: pass
+        except Exception as e: gr_err[lb] = repr(e)
     try: h_first.get_result()
-    except Exception: pass
+    except Exception as e: gr_err[dd_label] = repr(e)
     if req.get("crash"):
         crash_and_recover(allids)
-    wait_terminal(allids)
+    wait_terminal(allids, deadline_s=60.0)
     tasks = {}
     for lb in labels:
         st = DBOS.get_workflow_status(lb)
@@ -158,7 +159,8 @@ def do_enqueue(req):
             res = DBOS.retrieve_workflow(lb).get_result() if st and st.status == "SUCCESS" else None
         except Exception:
             res = None
-        tasks[lb] = {"result": res, "runs": TASK_RUNS.get(lb, 0)}
+        tasks[lb] = {"result": res, "runs": TASK_RUNS.get(lb, 0),
+                     "status": (st.status if st else None), "gr_err": gr_err.get(lb)}
     st = DBOS.get_workflow_status(dd_label)
     try:
         first_res = DBOS.retrieve_workflow(dd_label).get_result() if st and st.status == "SUCCESS" else None
@@ -370,6 +372,7 @@ class EnqueueTaskFlow:
         facts = sut.request({"cmd": "enqueue", "base": base, "k": self.K, "crash": sut.crash_armed})
         tasks = facts.get("tasks") or {}
         dedup = facts.get("dedup") or {}
+        print("WIODIAG enqueue " + json.dumps(facts)[:900], flush=True)  # TEMP diagnostic
 
         for j in range(self.K):
             label = f"{base}:{j}"
