@@ -58,3 +58,4 @@
   lookup); deduplication_id goes via SetEnqueueOptions, not an enqueue kwarg. dedup confirmed:
   DBOSQueueDeduplicatedError raised, duplicate never ran. Both L0 floors GREEN. Promoted
   enqueue-contention L1 -> ready. Next: L1 contention (durable-contention, enqueue-contention).
+- 2026-07-11T22:11Z e4 executor durable-contention L1 status: running
