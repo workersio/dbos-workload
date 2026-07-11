@@ -385,7 +385,6 @@ class EnqueueTaskFlow:
         facts = sut.request({"cmd": "enqueue", "base": base, "k": self.K, "crash": sut.crash_armed})
         tasks = facts.get("tasks") or {}
         dedup = facts.get("dedup") or {}
-        print("WIODIAG enqueue " + json.dumps(facts)[:900], flush=True)  # TEMP diagnostic
 
         for j in range(self.K):
             label = f"{base}:{j}"
