@@ -141,12 +141,13 @@ APP_SRC = textwrap.dedent(
             labels = [base + ":" + str(j) for j in range(k)]
             handles = [(lb, queue.enqueue(wio_task, lb)) for lb in labels]
 
+            dd_id = base + ":dd"
             dd_label = base + ":dedup"
-            h_first = queue.enqueue(wio_task, dd_label, deduplication_id="dd")
+            h_first = queue.enqueue(wio_task, dd_label, deduplication_id=dd_id)
             refused_label = base + ":dedup-dup"
             refused = False
             try:
-                queue.enqueue(wio_task, refused_label, deduplication_id="dd")
+                queue.enqueue(wio_task, refused_label, deduplication_id=dd_id)
             except Exception:
                 refused = True
 
@@ -272,7 +273,11 @@ class DurableWorkflowFlow:
 
     def run(self, ctx):
         sut = ctx.sut
-        tag = f"wf-{ctx.actor_id}-{sut.seed}"
+        # Unique per invocation: an actor may run this flow several times in one
+        # plan; a wfid reused across invocations hits DBOS idempotency (cached
+        # result, steps skipped) and a fresh subprocess would see 0 step-runs.
+        # ctx.rng is per-actor seeded, so the nonce is deterministic/replayable.
+        tag = f"wf-{ctx.actor_id}-{sut.seed}-{ctx.rng.randrange(1_000_000_000)}"
         expected = f"{tag}:done:{self.N}"
 
         ctx.step("submit")  # a crash-restart event, if armed, flips sut.crash_armed here
@@ -310,7 +315,9 @@ class EnqueueTaskFlow:
 
     def run(self, ctx):
         sut = ctx.sut
-        base = f"task-{ctx.actor_id}-{sut.seed}"
+        # Unique per invocation (see DurableWorkflowFlow): reused labels/dedup ids
+        # across invocations would collide and manufacture false reds.
+        base = f"task-{ctx.actor_id}-{sut.seed}-{ctx.rng.randrange(1_000_000_000)}"
 
         ctx.step("enqueue")
         facts = sut.run_app(
