@@ -49,3 +49,4 @@
   (both virtual-time); DBOS boot ~555s virtual/~20s real. Two driver bugs found+fixed via
   the sweep (task effect must be a @DBOS.step; wfid/label unique per invocation).
   durable-solo done; promoted durable-contention L1 -> ready. Next: enqueue-solo L0.
+- 2026-07-11T21:32Z e3 executor enqueue-solo L0 status: running
