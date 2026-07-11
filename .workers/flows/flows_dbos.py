@@ -47,7 +47,7 @@ CFG = json.loads(os.environ["WIO_CFG"])
 STEP_RUNS = {}
 TASK_RUNS = {}
 
-from dbos import DBOS, Queue, SetWorkflowID
+from dbos import DBOS, Queue, SetWorkflowID, SetEnqueueOptions
 
 DBOS.destroy(destroy_registry=True)
 
@@ -140,14 +140,19 @@ def do_enqueue(req):
             handles.append((lb, queue.enqueue(wio_task, lb)))
     dd_id = base + ":dd"
     dd_label = base + ":dedup"
+    # A deduplication id is set via SetEnqueueOptions (a context manager), not an
+    # enqueue kwarg. The refused duplicate is enqueued while the first is still
+    # in flight (before any get_result), so the live dedup id must reject it.
     with SetWorkflowID(dd_label):
-        h_first = queue.enqueue(wio_task, dd_label, deduplication_id=dd_id)
+        with SetEnqueueOptions(deduplication_id=dd_id):
+            h_first = queue.enqueue(wio_task, dd_label)
     refused_label = base + ":dedup-dup"
     refused = False
     refused_err = None
     try:
         with SetWorkflowID(refused_label):
-            queue.enqueue(wio_task, refused_label, deduplication_id=dd_id)
+            with SetEnqueueOptions(deduplication_id=dd_id):
+                queue.enqueue(wio_task, refused_label)
     except Exception as e:
         refused = True
         refused_err = repr(e)
