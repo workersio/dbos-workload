@@ -2,6 +2,8 @@
 
 ## config
 
+- wio-project: kn71mb4pcxmees43sy547v76z98a7fv0  (DBOS Workload — this repo, main)
+- runs: draft-only (never pass --exploration; nothing publishes in this lane)
 - max-loops: 100
 - max-runs: 250
 - staleness-k: 5
