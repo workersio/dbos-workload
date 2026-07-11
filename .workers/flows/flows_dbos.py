@@ -132,45 +132,53 @@ def do_durable(req):
 def do_enqueue(req):
     base, k = req["base"], req["k"]
     labels = [base + ":" + str(j) for j in range(k)]
-    handles = [(lb, queue.enqueue(wio_task, lb)) for lb in labels]
+    # Set the workflow id per enqueue so it equals the label: get_workflow_status
+    # and the crash reset can address the task, and the handle result is captured.
+    handles = []
+    for lb in labels:
+        with SetWorkflowID(lb):
+            handles.append((lb, queue.enqueue(wio_task, lb)))
     dd_id = base + ":dd"
     dd_label = base + ":dedup"
-    h_first = queue.enqueue(wio_task, dd_label, deduplication_id=dd_id)
+    with SetWorkflowID(dd_label):
+        h_first = queue.enqueue(wio_task, dd_label, deduplication_id=dd_id)
     refused_label = base + ":dedup-dup"
     refused = False
+    refused_err = None
     try:
-        queue.enqueue(wio_task, refused_label, deduplication_id=dd_id)
-    except Exception:
+        with SetWorkflowID(refused_label):
+            queue.enqueue(wio_task, refused_label, deduplication_id=dd_id)
+    except Exception as e:
         refused = True
+        refused_err = repr(e)
     allids = labels + [dd_label]
-    gr_err = {}
+    results = {}
     for lb, h in handles:
-        try: h.get_result()
-        except Exception as e: gr_err[lb] = repr(e)
-    try: h_first.get_result()
-    except Exception as e: gr_err[dd_label] = repr(e)
+        try:
+            results[lb] = h.get_result()
+        except Exception as e:
+            results[lb] = {"_err": repr(e)}
+    try:
+        first_res = h_first.get_result()
+    except Exception as e:
+        first_res = {"_err": repr(e)}
     if req.get("crash"):
         crash_and_recover(allids)
-    wait_terminal(allids, deadline_s=60.0)
+        wait_terminal(allids, deadline_s=60.0)
+        for lb, h in handles:
+            try: results[lb] = DBOS.retrieve_workflow(lb).get_result()
+            except Exception: pass
     tasks = {}
     for lb in labels:
         st = DBOS.get_workflow_status(lb)
-        try:
-            res = DBOS.retrieve_workflow(lb).get_result() if st and st.status == "SUCCESS" else None
-        except Exception:
-            res = None
-        tasks[lb] = {"result": res, "runs": TASK_RUNS.get(lb, 0),
-                     "status": (st.status if st else None), "gr_err": gr_err.get(lb)}
-    st = DBOS.get_workflow_status(dd_label)
-    try:
-        first_res = DBOS.retrieve_workflow(dd_label).get_result() if st and st.status == "SUCCESS" else None
-    except Exception:
-        first_res = None
+        tasks[lb] = {"result": results.get(lb), "runs": TASK_RUNS.get(lb, 0),
+                     "status": (st.status if st else None)}
     return {
         "tasks": tasks,
         "dedup": {
             "first": {"result": first_res, "runs": TASK_RUNS.get(dd_label, 0)},
             "refused": refused,
+            "refused_err": refused_err,
             "refused_runs": TASK_RUNS.get(refused_label, 0),
             "refused_label": refused_label,
             "dd_label": dd_label,
