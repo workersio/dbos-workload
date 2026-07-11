@@ -1,6 +1,12 @@
 #!/bin/sh
 set -eu
 
+# DBOS boot (system-db migration + startup recovery scan + launch) costs ~555s of
+# VIRTUAL time under the deterministic sandbox (~20s real). run_scenario's liveness
+# watchdog defaults to 240s and would kill a healthy boot as a false hang, so raise
+# it here unless the caller already set it. See ../friction.md.
+export WIO_WATCHDOG_S="${WIO_WATCHDOG_S:-7200}"
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VENV="${DBOS_TARGET_VENV:-${ROOT}/.workers/vendor/dbos-venv}"
 PYTHON="${DBOS_RUNTIME_PYTHON:-${VENV}/bin/python}"

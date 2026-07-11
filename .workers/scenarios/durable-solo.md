@@ -7,7 +7,7 @@ depth: 15
 status: ready
 result: null
 replay: null
-redproof: null
+redproof: {run: 01KX9GH6PHB59KVRBZMYDFGRD7, seed: 88385493}
 invariants: [step-exactly-once, resumes-after-crash, workflow-terminal]
 story: >-
   A single job runs its three steps once each and finishes, and its result is
