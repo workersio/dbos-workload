@@ -235,7 +235,10 @@ class DbosSUT:
             env=env,
             capture_output=True,
             text=True,
-            timeout=180,
+            # NOTE: this timeout is measured in the sandbox's VIRTUAL time, and a
+            # DBOS boot (migration + startup recovery + launch) costs ~555s virtual
+            # even though it is ~20s real — so this must sit well above one boot.
+            timeout=1200,
         )
         facts = {}
         for line in proc.stdout.splitlines():
