@@ -37,6 +37,15 @@ Severity weights: data-loss 4 · correctness 3 · availability 2 · wrong-error 
 | e-028 | Interrupted `garbage_collect` orphans `transaction_outputs` → reused workflow id replays a dead step result | 3–4 | `dossiers/e-028-gc-orphan-oaoo.md` | scratch `e028_repro.py` | dbos 2.26.0 | #769 |
 | e-031 | `write_stream` from a step is not exactly-once (duplicates on every step retry) | 3 | `dossiers/e-031-stream-step-oaoo.md` | `dossiers/e-031-repro.py` | dbos 2.26.0 | #770 |
 
+## Via report skill
+
+Packaged through the `report` skill (four-stage brief/gates/packet/preflight,
+full packet dir under `.workers/reports/<id>/`). Verdict column is the skill's.
+
+| id | title | sev | conf | verdict | packet dir | verified-on | hold reason |
+|----|-------|:---:|:---:|---------|------------|-------------|-------------|
+| e-033 | Portable serialization writes `NaN`/`Infinity` into `workflow_status.inputs`, so the stored input is not valid JSON | 3 | high | **HOLD** | `reports/e-033/` | dbos 2.26.0 + main ✅ (3/3) | rate limit: 3 open, maintainer-unanswered issues by viswa-abe (#768/#769/#770). Send when open-unanswered < 2. |
+
 ## Method notes
 
 - Each repro prints a clear differential (control value vs bug value) and exits 1
