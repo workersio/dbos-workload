@@ -19,3 +19,11 @@ barrier between submit and re-observe; recovery must drive both workflows to
 SUCCESS with each completed step still run exactly once. Its no-event sibling is
 durable-solo/durable-contention at lower rungs, so a red here is attributable to
 recovery. Promote to ready after the L1 floor is done.
+
+Scope note (strategy-critic e1): this exercises step-exactly-once-under-recovery
+and workflow-terminal faithfully (the vendor's own SUCCESS->PENDING +
+_recover_pending_workflows technique, test_dbos.py:432). It does NOT yet exercise
+true mid-flight partial resume (the workflow completes before the reset), so
+`resumes-after-crash` is only partially probed here. A follow-up L3 scenario that
+interrupts a workflow between steps (async start + crash before completion) is
+the faithful partial-resume test — tracked for the next batch.

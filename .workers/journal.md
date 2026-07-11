@@ -31,3 +31,14 @@
   backlog rows (top: concurrent-recovery race 74). check.py OK. strategy-critic
   model+set audit dispatched.
 - 2026-07-11T20:54Z e2 executor durable-solo L0 status: running
+- 2026-07-11T20:56Z e2 strategy-critic (model+set audit) → fix-first: (1) enqueue task effect
+  was in the workflow body not a @DBOS.step → recovery would legitimately double
+  it and manufacture a false red on task-completes-once — FIXED (wio_task_step).
+  Kept the global SUCCESS->PENDING crash reset (faithful whole-process crash; with
+  the effect in a step, recovery skips it so no cross-actor false red). Documented
+  that durable-crash-recovery probes step-skip-under-recovery, not yet true
+  mid-flight partial resume. Model follow-ups for next row-4 refresh: (a) fan-out/
+  fan-in (a workflow that enqueues child tasks) — the canonical DBOS journey the
+  two disjoint flows can't express; (b) notifications send/recv as the primitive
+  apps use to observe the crash promise; (c) concurrent multi-executor recovery of
+  the SAME row (candidates.md top row, 74). Re-checking + re-preparing.

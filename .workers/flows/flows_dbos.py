@@ -79,12 +79,20 @@ class DbosSUT:
                 wio_step(tag, i)
             return f"{tag}:done:{n}"
 
-        # -- enqueue-task: one task = one workflow that bumps a process-global
-        #    counter and returns its label.
-        @DBOS.workflow()
-        def wio_task(label: str) -> str:
+        # -- enqueue-task: one task = one workflow whose single step bumps a
+        #    process-global counter. The effect lives in a @DBOS.step so that
+        #    recovery re-runs the workflow body but SKIPS the completed step —
+        #    task-completes-once means the *step effect* happens once, which is
+        #    exactly DBOS's OAOO guarantee (a body-level counter would legitimately
+        #    double on recovery and manufacture a false red).
+        @DBOS.step()
+        def wio_task_step(label: str) -> str:
             TASK_RUNS[label] = TASK_RUNS.get(label, 0) + 1
             return f"{label}:ok"
+
+        @DBOS.workflow()
+        def wio_task(label: str) -> str:
+            return wio_task_step(label)
 
         self.wio_durable_workflow = wio_durable_workflow
         self.wio_task = wio_task
