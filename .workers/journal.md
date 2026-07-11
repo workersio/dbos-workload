@@ -30,3 +30,4 @@
   solo/contention/crash); L0s ready, L1/L3 planned. candidates.md holds 6 ranked
   backlog rows (top: concurrent-recovery race 74). check.py OK. strategy-critic
   model+set audit dispatched.
+- 2026-07-11T20:54Z e2 executor durable-solo L0 status: running
