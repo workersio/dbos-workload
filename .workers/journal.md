@@ -42,3 +42,10 @@
   two disjoint flows can't express; (b) notifications send/recv as the primitive
   apps use to observe the crash promise; (c) concurrent multi-executor recovery of
   the SAME row (candidates.md top row, 74). Re-checking + re-preparing.
+- 2026-07-11T21:31Z e2 executor durable-solo L0 -> GREEN 15/15 (exploration nd77qf2n1gvemg13w5px9yfszs8aa6vp),
+  redproof PASS (run 01KX9GH6PHB59KVRBZMYDFGRD7). MILESTONE: full producer->executor->GREEN
+  cycle proven on real DBOS. Infra path established: DBOS must run out-of-process
+  (in-process hangs the sandbox watchdog); WIO_WATCHDOG_S=7200 + subprocess timeout 1200
+  (both virtual-time); DBOS boot ~555s virtual/~20s real. Two driver bugs found+fixed via
+  the sweep (task effect must be a @DBOS.step; wfid/label unique per invocation).
+  durable-solo done; promoted durable-contention L1 -> ready. Next: enqueue-solo L0.

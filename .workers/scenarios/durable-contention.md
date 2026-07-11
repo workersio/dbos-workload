@@ -4,7 +4,7 @@ rung: L1
 cast: {workflow-runner: 3}
 flows: [durable-workflow]
 depth: 30
-status: planned
+status: ready
 result: null
 replay: null
 redproof: null

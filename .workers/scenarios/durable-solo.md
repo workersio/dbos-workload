@@ -4,9 +4,9 @@ rung: L0
 cast: {workflow-runner: 1}
 flows: [durable-workflow]
 depth: 15
-status: ready
-result: null
-replay: null
+status: done
+result: green
+replay: {run: nd77qf2n1gvemg13w5px9yfszs8aa6vp, seed: all}
 redproof: {run: 01KX9GH6PHB59KVRBZMYDFGRD7, seed: 88385493}
 invariants: [step-exactly-once, resumes-after-crash, workflow-terminal]
 story: >-
