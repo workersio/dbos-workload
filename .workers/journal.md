@@ -17,3 +17,16 @@
 
 - 2026-07-11 init: .workers/ v2 scaffold (usage-first greenfield); v1 corpus
   preserved on main; lib copied from workload-harness skill @ usage-first
+
+## log (cont.)
+
+- 2026-07-11T20:53Z e1 producer: first usage model from 4-scout fan-out (README/docs, vendor
+  tests, recovery/queue engine, notifications/scheduler). 2 hottest flows
+  (durable-workflow, enqueue-task) + crash-restart event + 41-module G8 floor.
+  Wrote flows_dbos.py drivers (real DBOS boot mirroring tests/conftest; crash
+  injected via status->PENDING + _recover_pending_workflows) — the scaffold
+  folds "first executor writes the two hottest drivers" into this bootstrap so
+  check.py is green. Emitted batch of 6 scenarios (durable/enqueue ×
+  solo/contention/crash); L0s ready, L1/L3 planned. candidates.md holds 6 ranked
+  backlog rows (top: concurrent-recovery race 74). check.py OK. strategy-critic
+  model+set audit dispatched.
