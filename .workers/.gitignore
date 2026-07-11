@@ -1,6 +1,6 @@
 .claims/
 tmp/
 vendor/
-workloads/__pycache__/
-workloads/**/*.pyc
+flows/__pycache__/
 lib/__pycache__/
+__pycache__/
