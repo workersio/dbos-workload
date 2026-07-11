@@ -4,10 +4,10 @@ rung: L0
 cast: {task-producer: 1}
 flows: [enqueue-task]
 depth: 15
-status: ready
-result: null
-replay: null
-redproof: null
+status: done
+result: green
+replay: {run: nd7cvgjeahdmxhsf0718asg0zh8aat50, seed: all}
+redproof: {run: 01KX9KEQNPR4D4J9BQ43FV34SE, seed: 1696635219}
 invariants: [task-completes-once, dedup-id-enforced]
 story: >-
   You drop a few tasks in the queue; each one runs exactly once and hands back

@@ -50,3 +50,11 @@
   the sweep (task effect must be a @DBOS.step; wfid/label unique per invocation).
   durable-solo done; promoted durable-contention L1 -> ready. Next: enqueue-solo L0.
 - 2026-07-11T21:32Z e3 executor enqueue-solo L0 status: running
+- 2026-07-11T22:10Z e3 executor enqueue-solo L0 -> GREEN 15/15 (sweep nd7cvgjeahdmxhsf0718asg0zh8aat50),
+  redproof PASS (01KX9KEQNPR4D4J9BQ43FV34SE). Big infra win: replaced per-invocation
+  subprocess boots with a persistent one-boot-per-run DBOS server (concurrent requests)
+  -> enqueue no longer times out. Three enqueue driver bugs found+fixed: task effect must
+  be a @DBOS.step; enqueued task id must be Set to its label (auto-UUID broke status/result
+  lookup); deduplication_id goes via SetEnqueueOptions, not an enqueue kwarg. dedup confirmed:
+  DBOSQueueDeduplicatedError raised, duplicate never ran. Both L0 floors GREEN. Promoted
+  enqueue-contention L1 -> ready. Next: L1 contention (durable-contention, enqueue-contention).

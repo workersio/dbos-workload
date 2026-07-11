@@ -4,7 +4,7 @@ rung: L1
 cast: {task-producer: 3}
 flows: [enqueue-task]
 depth: 30
-status: planned
+status: ready
 result: null
 replay: null
 redproof: null
