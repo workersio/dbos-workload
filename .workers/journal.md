@@ -64,3 +64,4 @@
   (no INVARIANT FAIL) = post-verdict non-zero-exit infra flake, not a red (friction logged).
   Concurrent workflow execution through the persistent server is correct. Promoted
   durable-crash-recovery L3 -> ready. Next: the crash-recovery L3 (core reward-red target).
+- 2026-07-11T22:19Z e5 executor durable-crash-recovery L3 status: running
