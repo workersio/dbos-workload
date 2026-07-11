@@ -5,7 +5,7 @@ cast: {workflow-runner: 2}
 flows: [durable-workflow]
 event: {key: crash-restart, at: crashclock}
 depth: 50
-status: planned
+status: ready
 result: null
 replay: null
 redproof: null

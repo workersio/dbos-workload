@@ -59,3 +59,8 @@
   DBOSQueueDeduplicatedError raised, duplicate never ran. Both L0 floors GREEN. Promoted
   enqueue-contention L1 -> ready. Next: L1 contention (durable-contention, enqueue-contention).
 - 2026-07-11T22:11Z e4 executor durable-contention L1 status: running
+- 2026-07-11T22:19Z e4 executor durable-contention L1 -> GREEN 29/30 (sweep nd77ba67th62qb4axyhehkeb2s8aayg7),
+  redproof PASS (01KX9KS8B3ZH8PQSRB30VH7FMX). 1/30 "failed" state had all ledgers PASS 0
+  (no INVARIANT FAIL) = post-verdict non-zero-exit infra flake, not a red (friction logged).
+  Concurrent workflow execution through the persistent server is correct. Promoted
+  durable-crash-recovery L3 -> ready. Next: the crash-recovery L3 (core reward-red target).
