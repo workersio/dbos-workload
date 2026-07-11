@@ -71,3 +71,31 @@
   holds for this crash model (step-skip). No red (expected; well-guarded). The reward-red
   targets are the candidate backlog's concurrent-recovery race (74) — needs a row-4 refresh.
   Next: enqueue-contention L1, then enqueue-crash-recovery L3.
+
+## session summary — 2026-07-11T22:52Z (initial model exhausted)
+
+Stood up the dbos-usage greenfield lane end-to-end and proved the full loop on REAL
+DBOS on the wio worker.
+
+Results (6 scenarios, 2 flows):
+- durable-workflow: L0 durable-solo GREEN 15/15, L1 durable-contention GREEN 29/30
+  (1 post-verdict exit flake), L3 durable-crash-recovery GREEN 50/50 — the recovery
+  step-skip promise holds; each with a passed red-proof. Flow fully floored.
+- enqueue-task: L0 enqueue-solo GREEN 15/15 + red-proof. L1 enqueue-contention and
+  L3 enqueue-crash-recovery BLOCKED (harness limit, not a DBOS bug — see friction).
+- No real RED found. The initial 2-flow model's promises hold under these scenarios.
+
+Infra established (all in friction.md): DBOS must run OUT-OF-PROCESS (in-process hangs
+the sandbox watchdog); a persistent ONE-BOOT-PER-RUN server (concurrent requests) is
+the working architecture; WIO_WATCHDOG_S=7200 (baked into python-runtime.sh) and a
+1200s subprocess timeout (both VIRTUAL time) cover the ~555s-virtual DBOS boot.
+
+Driver bugs found+fixed along the way (6): task effect must be a @DBOS.step; wfid/label
+unique per invocation; enqueued task id must be Set to its label; deduplication_id via
+SetEnqueueOptions; fast queue polling. Each was caught by a sweep or a critic, not by
+the red-proof — the sweep + critic gates are earning their keep.
+
+dispatcher: check.py --status = row 1 (model flows done, no findings, modules covered).
+BUT candidates.md has 6 rows above threshold 40 (top: concurrent-recovery race 74) and
+staleness (no red in 6 episodes) — per the skill these are row-4 refresh territory, not
+a true stop. Held pending direction.
