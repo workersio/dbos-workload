@@ -5,10 +5,10 @@ cast: {workflow-runner: 2}
 flows: [durable-workflow]
 event: {key: crash-restart, at: crashclock}
 depth: 50
-status: ready
-result: null
-replay: null
-redproof: null
+status: done
+result: green
+replay: {run: nd7793ca00b86fra3xgtz67cp18abfkj, seed: all}
+redproof: {run: 01KX9M8ZQKMDDDJN371XQWMKEC, seed: 4225952255}
 invariants: [step-exactly-once, resumes-after-crash, workflow-terminal]
 story: >-
   The server crashes in the middle of two jobs; when it restarts, both finish

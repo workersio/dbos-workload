@@ -65,3 +65,9 @@
   Concurrent workflow execution through the persistent server is correct. Promoted
   durable-crash-recovery L3 -> ready. Next: the crash-recovery L3 (core reward-red target).
 - 2026-07-11T22:19Z e5 executor durable-crash-recovery L3 status: running
+- 2026-07-11T22:31Z e5 executor durable-crash-recovery L3 -> GREEN 50/50 (sweep nd7793ca00b86fra3xgtz67cp18abfkj),
+  redproof PASS (01KX9M8ZQKMDDDJN371XQWMKEC), crash fired (CLOCK fired crash-restart). DBOS
+  correctly skips completed steps under recovery across all 50 seeds — the recovery promise
+  holds for this crash model (step-skip). No red (expected; well-guarded). The reward-red
+  targets are the candidate backlog's concurrent-recovery race (74) — needs a row-4 refresh.
+  Next: enqueue-contention L1, then enqueue-crash-recovery L3.
