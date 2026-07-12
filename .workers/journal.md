@@ -223,3 +223,16 @@ a true stop. Held pending direction.
   top remaining reachable red is the weight-1 fork-nonexistent; pursuing it because it crystallizes the
   fleet's FIRST finding and proves the full producer->executor->RED->finding pipeline end-to-end (a
   stated milestone), and it maps onto the existing error-contract oracle. Building management flow next.
+- 2026-07-12T13:00Z e13 executor+crystallize management-illegal-transitions -> FLEET'S FIRST FINDING.
+  Real run depth-3: all 3 seeds RED (error_contract FAIL: fork-missing raised undocumented 'Exception'
+  where DBOSNonExistentWorkflowError is contracted); the two control ops (resume-terminal,
+  cancel-cancelled) stayed GREEN so the oracle discriminates. Redproof: plant landed on the green
+  control resume-terminal -> ORACLE_SELFTEST PASS (meaningful, not trivially-satisfied). test-reviewer
+  gate: KEEP — and strengthened it: DBOS's OWN fork_workflow_async (_dbos.py:2304) + the export path
+  (_sys_db.py:4708) raise the typed error, so the SYNC fork_workflow (_sys_db.py:1180 raw Exception)
+  is the lone outlier; tests/test_client.py:664-666 asserts the typed error for retrieve_workflow on a
+  missing id (vendor test SUPPORTS the contract — opposite of the e7 write_stream case). Transaction
+  rolls back -> no state corruption -> weight 1 (wrong-error) honest. Crystallized
+  findings/fork-nonexistent-raw-exception.md (status held; replay nd7cr1kb...; redproof
+  01KXAWNRK248Y3J8V0C2BMS39Y). This proves the full producer->executor->RED->finding pipeline
+  end-to-end on the box (the stated next milestone). check.py --status = row 1.

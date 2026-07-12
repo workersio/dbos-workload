@@ -4,10 +4,10 @@ rung: L0
 cast: {ops-operator: 1}
 flows: [management]
 depth: 10
-status: ready
-result: null
-replay: null
-redproof: null
+status: done
+result: finding
+replay: {run: nd7cr1kbwf5c2y3a8y8vmfcxyd8adpsb, seed: all}
+redproof: {run: 01KXAWNRK248Y3J8V0C2BMS39Y, seed: 557653039}
 invariants: [illegal-transition-errors-documented]
 story: >-
   An operator clicks the wrong button on a dashboard — resumes a job that already
