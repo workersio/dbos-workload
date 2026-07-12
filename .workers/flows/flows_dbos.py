@@ -381,17 +381,37 @@ def _run_gc(cutoff_ms):
 def _graph_recover(pid, cid, do_gc, wait_s):
     # Build a parent->child graph to SUCCESS, crash the parent (force PENDING),
     # optionally retention-gc the aged child, then recover and observe the parent.
+    from dbos._utils import GlobalParams
     with SetWorkflowID(pid):
         wio_gc_parent(pid, cid)
+    pb = DBOS.get_workflow_status(pid)
+    cb = DBOS.get_workflow_status(cid)
     force_pending([pid])
     gone = False
     if do_gc:
         _run_gc(int(time.time() * 1000) + 1000)
         gone = DBOS.get_workflow_status(cid) is None
-    DBOS._recover_pending_workflows()  # async dispatch; returns immediately
+    # Recover the executor that OWNS these rows (DBOS__VMID), not the default
+    # "local" — get_pending_workflows filters on executor_id (_sys_db.py:1949), so
+    # recovering "local" would re-dispatch nothing. Explicit = deterministic (no
+    # dependence on the background recovery loop's timing).
+    exec_id = GlobalParams.executor_id
+    try:
+        n_rec = len(DBOS._recover_pending_workflows([exec_id]))
+    except Exception as e:
+        n_rec = "ERR:" + repr(e)[:80]
     wait_terminal([pid], deadline_s=wait_s)  # bounded — a strand never terminalizes
     st = DBOS.get_workflow_status(pid)
-    return (st.status if st else None), gone
+    cs = DBOS.get_workflow_status(cid)
+    return {
+        "p_before": (pb.status if pb else None),
+        "c_before": (cb.status if cb else None),
+        "n_rec": n_rec,
+        "exec_id": exec_id,
+        "after": (st.status if st else None),
+        "child_after": (cs.status if cs else None),
+        "child_gone": gone,
+    }
 
 
 def do_gcstrand(req):
@@ -408,16 +428,16 @@ def do_gcstrand(req):
     wait_s = req.get("wait_s", 25.0)
 
     cpid, ccid = "gcp-ctl-" + nonce, "gcc-ctl-" + nonce
-    control_after, _ = _graph_recover(cpid, ccid, do_gc=False, wait_s=wait_s)
+    control = _graph_recover(cpid, ccid, do_gc=False, wait_s=wait_s)
     control_result = None
     try:
-        if control_after == "SUCCESS":
+        if control["after"] == "SUCCESS":
             control_result = DBOS.retrieve_workflow(cpid).get_result(polling_interval_sec=0.05)
     except Exception:
         pass
 
     spid, scid = "gcp-str-" + nonce, "gcc-str-" + nonce
-    strand_after, child_gone = _graph_recover(spid, scid, do_gc=True, wait_s=wait_s)
+    strand = _graph_recover(spid, scid, do_gc=True, wait_s=wait_s)
     # Cleanup: re-materialize the deleted child so the stranded recovery thread
     # drains instead of hot-polling until SUT teardown (observation already taken).
     try:
@@ -427,11 +447,13 @@ def do_gcstrand(req):
         pass
 
     return {
-        "control_after": control_after,
+        "control": control,
+        "strand": strand,
+        "control_after": control["after"],
         "control_result": control_result,
         "control_expected": "parent:" + ccid + ":childok",
-        "strand_after": strand_after,
-        "child_gone": child_gone,
+        "strand_after": strand["after"],
+        "child_gone": strand["child_gone"],
         "strand_expected": "parent:" + scid + ":childok",
     }
 
@@ -956,9 +978,8 @@ class WorkflowGraphFlow:
             try:
                 import json as _json
                 print("WIODIAG gcstrand " + _json.dumps({
-                    "control_after": facts.get("control_after"),
-                    "strand_after": facts.get("strand_after"),
-                    "child_gone": facts.get("child_gone"),
+                    "control": facts.get("control"),
+                    "strand": facts.get("strand"),
                 }), flush=True)
             except Exception:
                 pass
