@@ -334,15 +334,15 @@ def do_caprace(req):
         bproc = subprocess.Popen(
             [sys.executable, "-c", os.environ["WIO_EXEC_B"]],
             env={**os.environ, "DBOS__VMID": "wioB"},
-            stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, bufsize=1,
         )
-        # Drain B's stderr continuously (an un-drained PIPE would fill and block B)
-        # while still capturing it for diagnosis.
+        # Drain B's merged stdout+stderr continuously (an un-drained PIPE would
+        # fill and block B) while capturing the boot markers for diagnosis.
         _berr = []
         def _drain():
             try:
-                for _ln in bproc.stderr:
+                for _ln in bproc.stdout:
                     _berr.append(_ln)
             except Exception:
                 pass
@@ -446,17 +446,31 @@ except Exception:
 # recovered rows) until told to quit. Passed to A via WIO_EXEC_B.
 # --------------------------------------------------------------------------- #
 EXEC_B_SRC = ("""
-import json, os, sys, time
+import sys
+print("B0-start", flush=True)
+import json, os, time
+print("B1-stdlib", flush=True)
 
 CFG = json.loads(os.environ["WIO_CFG"])
 CAP_N = %d
 CAP_GATE = %d
+print("B2-cfg app=" + CFG["app_url"][:40], flush=True)
 
 from dbos import DBOS, Queue, SetWorkflowID
+print("B3-dbos-imported", flush=True)
 
 DBOS.destroy(destroy_registry=True)
+print("B4-destroyed", flush=True)
 """ % (CAP_N, CAP_GATE)) + CAP_DEFS + r'''
+print("B5-capdefs (geng built)", flush=True)
+try:
+    with _geng.begin() as _c0:
+        _c0.exec_driver_sql("SELECT 1")
+    print("B6-geng-connects", flush=True)
+except Exception as _e0:
+    print("B6-geng-FAIL: %r" % (_e0,), flush=True)
 _coord_stage("preboot")
+print("B7-preboot-written", flush=True)
 config = {
     "name": "wioapp",
     "application_database_url": CFG["app_url"],
