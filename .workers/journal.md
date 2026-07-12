@@ -290,3 +290,17 @@ a true stop. Held pending direction.
   check.py OK (9 scenarios, 4 flows). AST-validated driver; local run blocked (venv cloud-only). Committed
   4e0171e, pushed, prepare requested. NEXT: cloud redproof (ORACLE_SELFTEST PASS) then real depth-3;
   crystallize if strand reds; PAGE Viswa on the red.
+- 2026-07-12T16:10Z e16 CRYSTALLIZE — gc-strand RED confirmed + filed locally. Fixed the executor bug
+  (recover GlobalParams.executor_id=wioA, not default ["local"] — get_pending_workflows filters on
+  executor_id _sys_db.py:1953; recovering "local" re-dispatched nothing so BOTH arms falsely PENDING).
+  After fix, clean discrimination on cloud depth-3 (EID nd7ar33zr6vktnp5f262v1bqc98ad1b6, all 3 seeds RED):
+  control {n_rec:1, after:SUCCESS, child_after:SUCCESS} GREEN; strand {n_rec:1, after:PENDING,
+  child_after:null, child_gone:true} RED; oracle FAIL 1 strand-only (discriminates). Redproof
+  01KXB0153P12GBK3A5YXKTB24Z ORACLE_SELFTEST PASS. test-reviewer(opus)=KEEP (all source claims verified,
+  two-sided oracle, control isolates gc, not vendor-intended, faithful crash model, non-masking cleanup).
+  Wrote findings/gc-deletes-referenced-child-strands-parent.md (class availability, weight 2, status held,
+  maintainer-ready repro, zero product vocab). check.py OK (9 scenarios, 4 flows). This is the fleet's 2nd
+  crystallized finding (after fork-nonexistent, weight 1). PAGING Viswa per the wave-2 directive (page on
+  reds). Model state: workflow-graph flow done@L3; parked modules now honestly probed (scheduler/debouncer/
+  datasource hardened e14, notifications-FIFO shelved heap-luck). Next dispatcher cycle: model-refresh
+  status — remaining reachable single-process surface is thin; cross-executor class still platform-blocked.

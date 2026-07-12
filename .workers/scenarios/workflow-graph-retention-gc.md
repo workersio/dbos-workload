@@ -4,7 +4,10 @@ rung: L3
 cast: {ops-operator: 1}
 flows: [workflow-graph]
 depth: 3
-status: ready
+status: done
+result: finding
+replay: {run: nd7ar33zr6vktnp5f262v1bqc98ad1b6, seed: all}
+redproof: {run: 01KXB0153P12GBK3A5YXKTB24Z, seed: 1}
 invariants: [graph-survives-retention-gc]
 story: >-
   An operator runs a routine cleanup job that trims old, finished jobs out of the
