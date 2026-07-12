@@ -331,9 +331,20 @@ def do_caprace(req):
             _psleep(0.1)
 
         # Spawn executor B: a second live DBOS on the SAME databases, VMID=wioB.
+        # Executor B runs in REAL time (strip the deterministic-time shim): B is a
+        # grandchild the spine's virtual clock doesn't know about, so `import dbos`
+        # blocks on the first virtual-time call. Our A<->B coordination is DB-state
+        # driven, not clock driven, so B needs no virtual time. Record which shim
+        # vars were present for diagnosis.
+        _benv = {**os.environ, "DBOS__VMID": "wioB"}
+        _stripped = {}
+        for _k in list(_benv.keys()):
+            if _k in ("LD_PRELOAD",) or "FAKETIME" in _k or _k.startswith("WIO_VTIME") \
+               or _k in ("WIO_SANDBOX", "WIO_CLOCK", "WIO_DETERMINISTIC"):
+                _stripped[_k] = _benv.pop(_k)
         bproc = subprocess.Popen(
             [sys.executable, "-c", os.environ["WIO_EXEC_B"]],
-            env={**os.environ, "DBOS__VMID": "wioB"},
+            env=_benv,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, bufsize=1,
         )
@@ -397,6 +408,7 @@ def do_caprace(req):
     b_err = ("".join(_berr))[-900:]
     return {"cap": n, "gauge_max": gauge_max, "cur_full": cur_full,
             "b_ready": bool(b_ready), "b_recovered": b_rec, "b_stage": b_stage,
+            "stripped": sorted(_stripped.keys()),
             "states": states, "b_exit": bproc.poll(), "b_err": b_err}
 
 
@@ -730,7 +742,8 @@ class EnqueueTaskFlow:
                     "cap": n, "gauge_max": facts.get("gauge_max"),
                     "cur_full": facts.get("cur_full"), "b_ready": facts.get("b_ready"),
                     "b_recovered": facts.get("b_recovered"), "b_stage": facts.get("b_stage"),
-                    "b_exit": facts.get("b_exit"), "b_err": (facts.get("b_err") or "")[-700:],
+                    "stripped": facts.get("stripped"),
+                    "b_exit": facts.get("b_exit"), "b_err": (facts.get("b_err") or "")[-500:],
                 }), flush=True)
             except Exception:
                 pass
