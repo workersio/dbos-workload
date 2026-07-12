@@ -40,10 +40,67 @@ def _pg_pw() -> str:
 #   request  {id, cmd: "warmup"|"durable"|"enqueue", ...}
 #   reply    WIORESP {id, facts}
 # --------------------------------------------------------------------------- #
-SRV_SRC = r'''
-import json, os, sys, threading, time
+# CAP_N: the concurrency cap for the two-executor cap-under-recovery scenario.
+# Fixed here AND in EnqueueTaskFlow (they must agree — the queue is registered at
+# boot with this concurrency and the flow declares the same N to the oracle).
+CAP_N = 4
+CAP_GATE = 4242  # the Postgres advisory-lock id used as the cross-process barrier
+
+# Shared cap machinery: registered identically in BOTH executor A (SRV_SRC) and
+# executor B (EXEC_B_SRC) so recovery in B can look up and re-run cap_wf. The
+# gauge/barrier live in the APP database (a plain SQLAlchemy engine, NOT the DBOS
+# system db), so both OS processes share one cluster-wide concurrency gauge and
+# one advisory-lock gate. The gate is a Postgres-side block (immune to the
+# sandbox's virtual-time shim) — A holds it EXCLUSIVE; each cap step waits on a
+# SHARED lock, so all bodies release together the instant A opens the gate.
+CAP_DEFS = r'''
+import sqlalchemy as _sa
+_geng = _sa.create_engine(CFG["app_url"], pool_size=CAP_N * 4 + 8, max_overflow=16)
+
+def _gauge_setup():
+    with _geng.begin() as c:
+        c.exec_driver_sql("CREATE TABLE IF NOT EXISTS wio_cap_gauge (id int primary key, cur int, mx int)")
+
+def _gauge_reset():
+    with _geng.begin() as c:
+        c.exec_driver_sql("INSERT INTO wio_cap_gauge(id,cur,mx) VALUES(1,0,0) "
+                          "ON CONFLICT(id) DO UPDATE SET cur=0, mx=0")
+
+def _gauge_read():
+    with _geng.begin() as c:
+        row = c.exec_driver_sql("SELECT cur,mx FROM wio_cap_gauge WHERE id=1").fetchone()
+    return (row[0], row[1]) if row else (0, 0)
+
+@DBOS.step()
+def cap_block(token):
+    # Enter: bump the cluster gauge (row lock serializes concurrent bumps).
+    with _geng.begin() as c:
+        c.exec_driver_sql("UPDATE wio_cap_gauge SET cur=cur+1, mx=GREATEST(mx,cur+1) WHERE id=1")
+    # Wait at the gate: block on the SHARED advisory lock until A drops EXCLUSIVE.
+    # This is a real Postgres wait, so the virtual-time shim cannot fast-forward
+    # past it — the body genuinely stays live (holding a cap slot) meanwhile.
+    with _geng.connect() as c:
+        c.exec_driver_sql("SELECT pg_advisory_lock_shared(%s)" % CAP_GATE)
+        c.exec_driver_sql("SELECT pg_advisory_unlock_shared(%s)" % CAP_GATE)
+    # Exit: drop the gauge.
+    with _geng.begin() as c:
+        c.exec_driver_sql("UPDATE wio_cap_gauge SET cur=cur-1 WHERE id=1")
+    return "ok"
+
+@DBOS.workflow()
+def cap_wf(token):
+    return cap_block(token)
+
+cap_queue = Queue("wio_cap_q", concurrency=CAP_N, worker_concurrency=CAP_N,
+                  polling_interval_sec=0.05)
+'''
+
+SRV_SRC = ("""
+import json, os, sys, subprocess, threading, time
 
 CFG = json.loads(os.environ["WIO_CFG"])
+CAP_N = %d
+CAP_GATE = %d
 STEP_RUNS = {}
 TASK_RUNS = {}
 
@@ -71,7 +128,7 @@ def wio_task_step(label):
 @DBOS.workflow()
 def wio_task(label):
     return wio_task_step(label)
-
+""" % (CAP_N, CAP_GATE)) + CAP_DEFS + r'''
 config = {
     "name": "wioapp",
     "application_database_url": CFG["app_url"],
@@ -193,6 +250,92 @@ def do_enqueue(req):
         },
     }
 
+def do_caprace(req):
+    # Two-executor concurrency-cap-under-recovery probe. THIS process is executor
+    # A (DBOS__VMID=wioA). Fill the cap with n blocked cap_wf, then spawn executor
+    # B (DBOS__VMID=wioB) which recovers A's still-running queued rows; measure the
+    # cluster-wide gauge peak. A cap of n but a peak > n is the violation.
+    n = req["n"]
+    nonce = req.get("nonce", "x")
+    _gauge_setup()
+    _gauge_reset()
+
+    # Hold the gate EXCLUSIVE on a dedicated connection kept open for the whole
+    # race, so every cap_block (on A and on B) blocks at the shared lock.
+    gate_conn = _geng.connect()
+    gate_conn.exec_driver_sql("SELECT pg_advisory_lock(%s)" % CAP_GATE)
+    try:
+        wfids = []
+        for j in range(n):
+            wid = "cap-%s-%d" % (nonce, j)
+            with SetWorkflowID(wid):
+                cap_queue.enqueue(cap_wf, wid)
+            wfids.append(wid)
+
+        # Wait until A has dequeued and entered all n (cap full) — gauge.cur == n.
+        end = time.monotonic() + 90
+        cur_full = 0
+        while time.monotonic() < end:
+            cur, mx = _gauge_read()
+            if cur >= n:
+                cur_full = cur
+                break
+            time.sleep(0.05)
+        _, max_before_b = _gauge_read()
+
+        # Spawn executor B: a second live DBOS on the SAME databases, VMID=wioB.
+        bproc = subprocess.Popen(
+            [sys.executable, "-c", os.environ["WIO_EXEC_B"]],
+            env={**os.environ, "DBOS__VMID": "wioB"},
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, bufsize=1,
+        )
+        # Wait for B to boot + recover + re-run: gauge climbs past n (breach) or settles.
+        end = time.monotonic() + 900
+        last, stable = max_before_b, 0
+        while time.monotonic() < end:
+            cur, mx = _gauge_read()
+            if mx > n:
+                break  # breach witnessed
+            if mx == last:
+                stable += 1
+                if stable > 120:
+                    break  # settled with no breach
+            else:
+                last, stable = mx, 0
+            if bproc.poll() is not None and mx <= n:
+                break  # B exited without a breach
+            time.sleep(0.1)
+        _, gauge_max = _gauge_read()
+    finally:
+        # Open the gate: all blocked bodies (A's and B's) proceed and finish.
+        gate_conn.exec_driver_sql("SELECT pg_advisory_unlock(%s)" % CAP_GATE)
+        gate_conn.close()
+
+    wait_terminal(wfids, deadline_s=120.0)
+    try:
+        bproc.stdin.write("quit\n")
+        bproc.stdin.flush()
+        bproc.wait(timeout=40)
+    except Exception:
+        try:
+            bproc.kill()
+        except Exception:
+            pass
+    states = {}
+    for w in wfids:
+        st = DBOS.get_workflow_status(w)
+        states[w] = st.status if st else None
+    b_err = ""
+    try:
+        if bproc.poll() is not None:
+            b_err = (bproc.stderr.read() or "")[-500:]
+    except Exception:
+        pass
+    return {"cap": n, "gauge_max": gauge_max, "cur_full": cur_full,
+            "states": states, "b_exit": bproc.poll(), "b_err": b_err}
+
+
 def handle(req):
     rid = req.get("id")
     try:
@@ -205,6 +348,8 @@ def handle(req):
             facts = do_durable(req)
         elif cmd == "enqueue":
             facts = do_enqueue(req)
+        elif cmd == "caprace":
+            facts = do_caprace(req)
         else:
             facts = {"error": "unknown cmd " + str(cmd)}
     except Exception as e:
@@ -231,6 +376,49 @@ except Exception:
 
 
 # --------------------------------------------------------------------------- #
+# Executor B: a SECOND live DBOS on the SAME databases (DBOS__VMID=wioB). It
+# registers the SAME cap_wf so recovery can re-run it, boots, recovers executor
+# A's still-running queued rows, then idles (its queue poller re-dispatches the
+# recovered rows) until told to quit. Passed to A via WIO_EXEC_B.
+# --------------------------------------------------------------------------- #
+EXEC_B_SRC = ("""
+import json, os, sys, time
+
+CFG = json.loads(os.environ["WIO_CFG"])
+CAP_N = %d
+CAP_GATE = %d
+
+from dbos import DBOS, Queue, SetWorkflowID
+
+DBOS.destroy(destroy_registry=True)
+""" % (CAP_N, CAP_GATE)) + CAP_DEFS + r'''
+config = {
+    "name": "wioapp",
+    "application_database_url": CFG["app_url"],
+    "system_database_url": CFG["sys_url"],
+    "enable_otlp": False,
+    "notification_listener_polling_interval_sec": 0.02,
+}
+inst = DBOS(config=config)
+DBOS.launch()
+try:
+    _rec = DBOS._recover_pending_workflows(["wioA"])
+    sys.stderr.write("B recovered %d\n" % (len(_rec),))
+    sys.stderr.flush()
+except Exception as e:
+    sys.stderr.write("B recover error: %r\n" % (e,))
+    sys.stderr.flush()
+for _line in sys.stdin:
+    if _line.strip() == "quit":
+        break
+try:
+    DBOS.destroy(destroy_registry=True)
+except Exception:
+    pass
+'''
+
+
+# --------------------------------------------------------------------------- #
 # The SUT: config holder + persistent server client. No in-process DBOS.
 # --------------------------------------------------------------------------- #
 class DbosSUT:
@@ -242,6 +430,7 @@ class DbosSUT:
         self.sys_url = f"postgresql+psycopg://postgres:{pw}@localhost:5432/{self.db}_dbos_sys"
         self.maint_url = f"postgresql://postgres:{pw}@localhost:5432/postgres"
         self.crash_armed = False
+        self.faildeath_armed = False
 
         self._resp: dict = {}
         self._events: dict = {}
@@ -253,7 +442,8 @@ class DbosSUT:
         cfg = {"app_url": self.app_url, "sys_url": self.sys_url}
         self.proc = subprocess.Popen(
             [sys.executable, "-c", SRV_SRC],
-            env={**os.environ, "WIO_CFG": json.dumps(cfg)},
+            env={**os.environ, "WIO_CFG": json.dumps(cfg),
+                 "DBOS__VMID": "wioA", "WIO_EXEC_B": EXEC_B_SRC},
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, bufsize=1,
         )
@@ -374,14 +564,17 @@ class DurableWorkflowFlow:
 
 class EnqueueTaskFlow:
     key = "enqueue-task"
-    invariants = ("task-completes-once", "dedup-id-enforced")
+    invariants = ("task-completes-once", "dedup-id-enforced", "queue-concurrency-capped")
     documented: dict = {}
     bounds: dict = {}
 
     K = 3
+    N = 4  # cap for the false-death-recovery race; MUST equal SRV_SRC CAP_N
 
     def run(self, ctx):
         sut = ctx.sut
+        if sut.faildeath_armed:
+            return self._run_cap_race(ctx)
         base = f"task-{ctx.actor_id}-{sut.seed}-{ctx.rng.randrange(1_000_000_000)}"
 
         ctx.step("enqueue")
@@ -416,6 +609,28 @@ class EnqueueTaskFlow:
         ctx.ledger.observe("task-result", refused_label, value=None, present=(ran > 0))
         ctx.step("done")
 
+    def _run_cap_race(self, ctx):
+        # false-death-recovery: a queue with declared concurrency N must never run
+        # more than N bodies at once across the cluster, even while a second
+        # executor recovers this one's in-flight queued rows. The oracle is a
+        # cluster-wide gauge peak, expressed as a DENY (the cap forbids > N).
+        sut = ctx.sut
+        n = self.N
+        nonce = f"{ctx.actor_id}-{sut.seed}-{ctx.rng.randrange(1_000_000_000)}"
+        qkey = "wio_cap_q"
+
+        ctx.step("fill-cap")
+        facts = sut.request({"cmd": "caprace", "n": n, "nonce": nonce}, timeout=1500)
+        gauge_max = facts.get("gauge_max")
+
+        # The cap forbids more than n concurrent bodies. If the peak exceeded n,
+        # the denied thing happened -> RED.
+        ctx.ledger.denied("cap-breach", qkey, f"concurrency={n}")
+        ctx.step("observe")
+        breached = isinstance(gauge_max, int) and gauge_max > n
+        ctx.ledger.observe("cap-breach", qkey, value=gauge_max, present=breached)
+        ctx.step("done")
+
 
 FLOWS = {
     "durable-workflow": DurableWorkflowFlow,
@@ -427,4 +642,8 @@ def fire_crash_restart(sut):
     sut.crash_armed = True
 
 
-EVENTS = {"crash-restart": fire_crash_restart}
+def fire_false_death(sut):
+    sut.faildeath_armed = True
+
+
+EVENTS = {"crash-restart": fire_crash_restart, "false-death-recovery": fire_false_death}
