@@ -20,12 +20,15 @@ flows:
     invariants: [step-exactly-once, resumes-after-crash, workflow-terminal]
     citation: "README.md:41-42 (durability + resume-from-last-step); enforced by the vendor at tests/test_dbos.py:432-438 (recovery re-runs the workflow body but a completed step's counter stays at 1) and _core.py:1816-1847 (recorded step output replayed, not re-run)."
   enqueue-task:
-    invariants: [task-completes-once, dedup-id-enforced]
-    citation: "README.md:78-79 (tasks complete exactly-once, results collected without resubmit); dedup at tests/test_queue.py:1863-1898 and _sys_db.py:783-791 (unique (queue_name, deduplication_id) -> DBOSQueueDeduplicatedError)."
+    invariants: [task-completes-once, dedup-id-enforced, queue-concurrency-capped]
+    citation: "README.md:78-79 (tasks complete exactly-once, results collected without resubmit); dedup at tests/test_queue.py:1863-1898 and _sys_db.py:783-791 (unique (queue_name, deduplication_id) -> DBOSQueueDeduplicatedError); the queue's concurrency cap is enforced at _sys_db.py:3877-3899 (global = count PENDING then dispatch the remainder; worker = in-memory per-process running count) and the vendor asserts it holds under recovery at tests/test_queue.py:1289-1353."
 events:
   crash-restart:
     amplification: 25
     citation: "README.md:42 'if your program ever fails, when it restarts all your workflows will automatically resume' — the product's core promise. Simulated with the vendor's own injection: force in-flight rows to status PENDING then DBOS._recover_pending_workflows() (tests/test_dbos.py:425-433)."
+  false-death-recovery:
+    amplification: 20
+    citation: "A SECOND live executor recovers THIS executor's in-flight queued workflows because it wrongly believes the first died (missed heartbeat / GC pause / partition) — an unavoidable event in any multi-worker deployment. Recovery re-enqueues them via clear_queue_assignment (_recovery.py:16-22, _sys_db.py:4007-4021) with NO liveness/CAS check. The vendor's own recovery-under-concurrency test (tests/test_queue.py:1289-1353) recovers a LIVE executor ('local', line 1343) and asserts the cap holds (counter stays 2, line 1350) — but only single-process, where the in-memory ActiveWorkflowById guard (_core.py:619-639) hides the cross-process gap. Requires two live DBOS processes on one system database."
 modules:
   - {name: _core.py, covered-by: [durable-workflow, enqueue-task]}
   - {name: _dbos.py, covered-by: [durable-workflow, enqueue-task]}
@@ -118,17 +121,30 @@ becomes a flow invariant — the strategy-critic gate should run on every refres
   re-run step is directly visible.
 - **enqueue-task** — enqueue tasks on a `Queue` and collect results.
   Invariants: `task-completes-once` (each enqueued task runs to completion once
-  and its result is collectable without resubmit) and `dedup-id-enforced` (a
+  and its result is collectable without resubmit), `dedup-id-enforced` (a
   second enqueue with a live `deduplication_id` is refused, and the refused task
-  never runs).
+  never runs), and `queue-concurrency-capped` (no more than the queue's declared
+  `concurrency` workflows execute at once across the whole cluster — the cap the
+  user sets to protect a scarce downstream resource holds even while recovery is
+  re-dispatching queued work). The cap oracle is a *cluster-wide* live gauge
+  (a shared counter incremented on workflow entry, decremented on exit), because
+  the final DB row count settles back to the cap even when it was transiently
+  breached — only a runtime gauge witnesses the breach.
 
-## The event
+## The events
 
 - **crash-restart** (amplification 25) — a realistic process crash mid-workflow.
   Real programs crash rarely; we land it far more often than life to probe the
   recovery promise. Injected exactly as the vendor's own tests do: force the
   in-flight workflow rows to `PENDING` and call `_recover_pending_workflows()`,
   which re-runs workflow bodies while skipping already-completed steps.
+- **false-death-recovery** (amplification 20) — a SECOND live executor recovers
+  this executor's in-flight *queued* workflows because it wrongly believes the
+  first died (missed heartbeat, GC pause, network partition — unavoidable in any
+  multi-worker deployment). Recovery re-enqueues them with no liveness check, and
+  the concurrency cap is counted per-process in memory, so the re-dispatched work
+  can run a second time on the second executor while still running on the first.
+  Requires two live DBOS processes sharing one system database.
 
 ## Amplification / what the weights mean
 

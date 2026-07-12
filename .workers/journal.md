@@ -157,3 +157,26 @@ a true stop. Held pending direction.
   (70 queue×cancel×restart, 58 dedup×concurrency, 52 notifications-OAOO, 44 illegal-transitions)
   target the LESS-hardened management/notifications surface. Adopting "cheap source probe before
   harness build" as the standing discipline for every candidate.
+- 2026-07-12T09:40Z e10 producer/model-refresh candidate-58/70 cluster (queue × recovery) probed;
+  ONE reachable weight-2 seam survived and is PROMOTED. Scout probe over the queue+recovery code
+  refuted 3 of 4 targets with explicit guards (cancel×queue: dequeue predicate needs queue_name==name
+  and cancel sets queue_name=None _sys_db.py:917-936; dedup-survival: clear_queue_assignment never
+  nulls deduplication_id _sys_db.py:4018-4020; double-dispatch correctness: converges via the same
+  OAOO handler as e9). The survivor: QUEUE CONCURRENCY-CAP VIOLATION under false-death recovery.
+  Mechanism: the global cap is count-PENDING-then-dispatch (_sys_db.py:3877-3899) and worker_concurrency
+  is counted from a PER-PROCESS in-memory set (ActiveWorkflowById, _core.py:619-639); clear_queue_assignment
+  (_recovery.py:16-22) re-enqueues a live executor's in-flight queued rows with NO liveness/CAS check.
+  A second live executor that wrongly believes the first died recovers its rows, they drop out of the
+  PENDING count, and the second executor dequeues+runs them AGAIN while they're still running on the
+  first -> up to 2N bodies against a concurrency=N queue. CONTRACT CITATION IS THE VENDOR'S OWN TEST:
+  test_queue_concurrency_under_recovery (tests/test_queue.py:1289-1353) recovers a LIVE executor
+  ('local', :1343) and asserts the cap holds (counter stays 2, :1350) — but only single-process, where
+  the in-memory guard hides the cross-process gap. This INVERTS the e7 write_stream lesson: there the
+  vendor test CONTRADICTED my invariant (so REFUTE); here the vendor test ASSERTS my invariant (so
+  BUILD). No convergence (unlike e9) — the cap breach is a real runtime concurrency violation.
+  Model refresh: added event false-death-recovery (amp 20) + invariant queue-concurrency-capped on
+  enqueue-task, both cited to the vendor test + cap code. No new flow (queue path already enqueue-task);
+  G2 bijection intact. Oracle MUST be a cluster-wide live gauge (shared counter incremented on entry /
+  decremented on exit), NOT a row count (DB settles back to N) — scout's explicit warning. Next:
+  strategy-critic on the two-process harness design, then executor build (two live DBOS processes on one
+  Postgres + a DB-backed concurrency gauge + a cross-process barrier holding N bodies live during recovery).
