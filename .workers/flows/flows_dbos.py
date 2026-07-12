@@ -74,6 +74,30 @@ def _gauge_read():
         row = c.exec_driver_sql("SELECT cur,mx FROM wio_cap_gauge WHERE id=1").fetchone()
     return (row[0], row[1]) if row else (0, 0)
 
+# Coordination between A and B is DB-STATE-driven, never time-driven: both
+# processes run under the sandbox's virtual clock (sleeps fast-forward), so A
+# cannot "wait N seconds" for B's real ~20s boot. Instead A blocks on the flags B
+# sets, and B — whose own re-dispatched bodies block at the same gate — measures
+# the gauge peak itself and reports it.
+def _coord_setup():
+    with _geng.begin() as c:
+        c.exec_driver_sql(
+            "CREATE TABLE IF NOT EXISTS wio_cap_coord "
+            "(id int primary key, b_ready bool, b_done bool, b_recovered int, b_saw_max int)")
+
+def _coord_reset():
+    with _geng.begin() as c:
+        c.exec_driver_sql(
+            "INSERT INTO wio_cap_coord(id,b_ready,b_done,b_recovered,b_saw_max) "
+            "VALUES(1,false,false,0,0) ON CONFLICT(id) DO UPDATE SET "
+            "b_ready=false,b_done=false,b_recovered=0,b_saw_max=0")
+
+def _coord_read():
+    with _geng.begin() as c:
+        row = c.exec_driver_sql(
+            "SELECT b_ready,b_done,b_recovered,b_saw_max FROM wio_cap_coord WHERE id=1").fetchone()
+    return row if row else (False, False, 0, 0)
+
 @DBOS.step()
 def cap_block(token):
     # Enter: bump the cluster gauge (row lock serializes concurrent bumps).
@@ -262,8 +286,8 @@ def do_caprace(req):
     # cluster-wide gauge peak. A cap of n but a peak > n is the violation.
     n = req["n"]
     nonce = req.get("nonce", "x")
-    _gauge_setup()
-    _gauge_reset()
+    _gauge_setup(); _gauge_reset()
+    _coord_setup(); _coord_reset()
 
     # Hold the gate EXCLUSIVE on a dedicated connection kept open for the whole
     # race, so every cap_block (on A and on B) blocks at the shared lock.
@@ -278,15 +302,14 @@ def do_caprace(req):
             wfids.append(wid)
 
         # Wait until A has dequeued and entered all n (cap full) — gauge.cur == n.
-        end = time.monotonic() + 90
+        # A's own dispatch is prompt, so a bounded spin is fine here.
         cur_full = 0
-        while time.monotonic() < end:
+        for _ in range(200000):
             cur, mx = _gauge_read()
             if cur >= n:
                 cur_full = cur
                 break
-            time.sleep(0.05)
-        _, max_before_b = _gauge_read()
+            time.sleep(0.02)
 
         # Spawn executor B: a second live DBOS on the SAME databases, VMID=wioB.
         bproc = subprocess.Popen(
@@ -295,22 +318,19 @@ def do_caprace(req):
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, bufsize=1,
         )
-        # Wait for B to boot + recover + re-run: gauge climbs past n (breach) or settles.
-        end = time.monotonic() + 900
-        last, stable = max_before_b, 0
-        while time.monotonic() < end:
-            cur, mx = _gauge_read()
-            if mx > n:
-                break  # breach witnessed
-            if mx == last:
-                stable += 1
-                if stable > 120:
-                    break  # settled with no breach
-            else:
-                last, stable = mx, 0
-            if bproc.poll() is not None and mx <= n:
-                break  # B exited without a breach
-            time.sleep(0.1)
+        # Block on B's DB flags (NOT a virtual timer): B boots (~20s real), recovers
+        # A's live rows, its poller re-dispatches them (they block at THIS gate,
+        # bumping the gauge), B measures the peak and sets b_done. The spin is real-
+        # time-bounded only as a crash backstop (~a few hundred k DB reads).
+        b_ready = b_done = False
+        b_rec = b_saw = 0
+        for _ in range(2_000_000):
+            b_ready, b_done, b_rec, b_saw = _coord_read()
+            if b_done:
+                break
+            if bproc.poll() is not None:
+                break  # B died
+            time.sleep(0.01)
         _, gauge_max = _gauge_read()
     finally:
         # Open the gate: all blocked bodies (A's and B's) proceed and finish.
@@ -319,9 +339,8 @@ def do_caprace(req):
 
     wait_terminal(wfids, deadline_s=120.0)
     try:
-        bproc.stdin.write("quit\n")
-        bproc.stdin.flush()
-        bproc.wait(timeout=40)
+        bproc.stdin.write("quit\n"); bproc.stdin.flush()
+        bproc.wait(timeout=15)
     except Exception:
         try:
             bproc.kill()
@@ -333,11 +352,13 @@ def do_caprace(req):
         states[w] = st.status if st else None
     b_err = ""
     try:
-        if bproc.poll() is not None:
-            b_err = (bproc.stderr.read() or "")[-500:]
+        if bproc.poll() is not None and bproc.poll() != 0:
+            b_err = (bproc.stderr.read() or "")[-600:]
     except Exception:
         pass
     return {"cap": n, "gauge_max": gauge_max, "cur_full": cur_full,
+            "b_ready": bool(b_ready), "b_done": bool(b_done),
+            "b_recovered": b_rec, "b_saw_max": b_saw,
             "states": states, "b_exit": bproc.poll(), "b_err": b_err}
 
 
@@ -408,13 +429,32 @@ inst = DBOS(config=config)
 cap_queue = Queue("wio_cap_q", concurrency=CAP_N, worker_concurrency=CAP_N,
                   polling_interval_sec=0.05)
 DBOS.launch()
+_nrec = -1
 try:
     _rec = DBOS._recover_pending_workflows(["wioA"])
-    sys.stderr.write("B recovered %d\n" % (len(_rec),))
+    _nrec = len(_rec)
+    sys.stderr.write("B recovered %d\n" % (_nrec,))
     sys.stderr.flush()
 except Exception as e:
     sys.stderr.write("B recover error: %r\n" % (e,))
     sys.stderr.flush()
+with _geng.begin() as _c:
+    _c.exec_driver_sql("UPDATE wio_cap_coord SET b_ready=true, b_recovered=%d WHERE id=1" % _nrec)
+# B's poller re-dispatches the recovered rows; they run cap_block on B and block
+# at the shared gate (held by A), bumping the cluster gauge. Watch the peak until
+# a breach (mx > CAP_N) or a bounded backstop, then report it to A via b_done.
+_saw = 0
+for _i in range(2_000_000):
+    _cur, _mx = _gauge_read()
+    if _mx > _saw:
+        _saw = _mx
+    if _mx > CAP_N:
+        break
+    time.sleep(0.01)
+with _geng.begin() as _c:
+    _c.exec_driver_sql("UPDATE wio_cap_coord SET b_done=true, b_saw_max=%d WHERE id=1" % _saw)
+sys.stderr.write("B done, saw_max=%d\n" % (_saw,))
+sys.stderr.flush()
 for _line in sys.stdin:
     if _line.strip() == "quit":
         break
@@ -633,8 +673,10 @@ class EnqueueTaskFlow:
             import json as _json
             print("WIODIAG caprace " + _json.dumps({
                 "cap": n, "gauge_max": gauge_max, "cur_full": facts.get("cur_full"),
-                "b_exit": facts.get("b_exit"), "states": facts.get("states"),
-                "b_err": (facts.get("b_err") or "")[-200:],
+                "b_ready": facts.get("b_ready"), "b_done": facts.get("b_done"),
+                "b_recovered": facts.get("b_recovered"), "b_saw_max": facts.get("b_saw_max"),
+                "b_exit": facts.get("b_exit"),
+                "b_err": (facts.get("b_err") or "")[-300:],
             }), flush=True)
         except Exception:
             pass
