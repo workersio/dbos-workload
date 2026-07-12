@@ -55,7 +55,10 @@ CAP_GATE = 4242  # the Postgres advisory-lock id used as the cross-process barri
 # SHARED lock, so all bodies release together the instant A opens the gate.
 CAP_DEFS = r'''
 import sqlalchemy as _sa
-_geng = _sa.create_engine(CFG["app_url"], pool_size=CAP_N * 4 + 8, max_overflow=16)
+# Use psycopg3 (installed) for the gauge engine; the bare app_url would default
+# to psycopg2, which is not in the venv.
+_appurl = CFG["app_url"].replace("postgresql://", "postgresql+psycopg://", 1)
+_geng = _sa.create_engine(_appurl, pool_size=CAP_N * 4 + 8, max_overflow=16)
 
 def _gauge_setup():
     with _geng.begin() as c:
@@ -90,10 +93,10 @@ def cap_block(token):
 @DBOS.workflow()
 def cap_wf(token):
     return cap_block(token)
-
-cap_queue = Queue("wio_cap_q", concurrency=CAP_N, worker_concurrency=CAP_N,
-                  polling_interval_sec=0.05)
 '''
+# NB: cap_queue (Queue("wio_cap_q", ...)) is created AFTER DBOS(config=...) is
+# instantiated in each process (like the main queue) — a Queue built before the
+# DBOS instance exists hangs boot. See the launch blocks in SRV_SRC/EXEC_B_SRC.
 
 SRV_SRC = ("""
 import json, os, sys, subprocess, threading, time
@@ -141,6 +144,8 @@ inst = DBOS(config=config)
 # virtual time, so the default 1.0s interval makes a multi-actor enqueue request
 # consume tens of virtual seconds and trip the interleave scheduler's step timeout.
 queue = Queue("wio_queue", concurrency=4, polling_interval_sec=0.05)
+cap_queue = Queue("wio_cap_q", concurrency=CAP_N, worker_concurrency=CAP_N,
+                  polling_interval_sec=0.05)
 DBOS.launch()
 
 _out = threading.Lock()
@@ -400,6 +405,8 @@ config = {
     "notification_listener_polling_interval_sec": 0.02,
 }
 inst = DBOS(config=config)
+cap_queue = Queue("wio_cap_q", concurrency=CAP_N, worker_concurrency=CAP_N,
+                  polling_interval_sec=0.05)
 DBOS.launch()
 try:
     _rec = DBOS._recover_pending_workflows(["wioA"])
@@ -484,7 +491,7 @@ class DbosSUT:
     def _stderr_tail(self) -> str:
         try:
             if self.proc.poll() is not None:
-                return (self.proc.stderr.read() or "")[-600:]
+                return (self.proc.stderr.read() or "")[-2500:]
         except Exception:
             pass
         return "(server still running)"
