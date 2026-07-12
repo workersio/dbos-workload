@@ -401,7 +401,11 @@ def do_gcstrand(req):
     # A no-gc control proves recovery of a graph normally works (green), so the
     # oracle discriminates rather than always-reds.
     nonce = req["nonce"]
-    wait_s = req.get("wait_s", 8.0)
+    # Both arms use the SAME generous bound: a healthy crash-recovered graph
+    # completes well within it (the durable-workflow scenario proves ~25s is
+    # ample), so "still PENDING after the bound" is a genuine strand, not just a
+    # slow recovery. Too short a bound would falsely PENDING the control too.
+    wait_s = req.get("wait_s", 25.0)
 
     cpid, ccid = "gcp-ctl-" + nonce, "gcc-ctl-" + nonce
     control_after, _ = _graph_recover(cpid, ccid, do_gc=False, wait_s=wait_s)
@@ -949,6 +953,15 @@ class WorkflowGraphFlow:
             nonce = f"{ctx.actor_id}-{sut.seed}-{ctx.rng.randrange(1_000_000_000)}"
             facts = sut.request({"cmd": "gcstrand", "nonce": nonce}, timeout=900)
             sut.gc_result = facts
+            try:
+                import json as _json
+                print("WIODIAG gcstrand " + _json.dumps({
+                    "control_after": facts.get("control_after"),
+                    "strand_after": facts.get("strand_after"),
+                    "child_gone": facts.get("child_gone"),
+                }), flush=True)
+            except Exception:
+                pass
 
         # GREEN control: a crash-recovered parent/child graph (NO gc) must reach
         # SUCCESS — proves graph recovery works and the oracle is not always-red.
