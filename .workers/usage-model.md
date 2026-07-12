@@ -4,13 +4,17 @@ runner: .workers/run-with-postgres.sh .workers/python-runtime.sh
 actor-model: process-parallel
 personas:
   workflow-runner:
-    weight: 0.55
+    weight: 0.50
     flows: [durable-workflow]
     citation: "README.md:41-42 'DBOS workflows make your program durable by checkpointing its state in Postgres. If your program ever fails, when it restarts all your workflows will automatically resume from the last completed step.' — the headline quickstart flow every user writes first."
   task-producer:
-    weight: 0.40
+    weight: 0.35
     flows: [enqueue-task]
     citation: "README.md:78-79 'you can enqueue a task ... one of your processes will pick it up ... it guarantees that tasks complete, and that their callers get their results without needing to resubmit them, even if your application is interrupted.'"
+  ops-operator:
+    weight: 0.10
+    flows: [management]
+    citation: "The operator/control-plane surface — DBOSClient and the DBOS.cancel_workflow / resume_workflow / fork_workflow management verbs (_dbos.py:1895/2069/2229, _client.py, _workflow_commands.py). A real operator inspects and steers stuck or misfired workflows from a dashboard or the admin API; wrong-state verbs (fork a missing id, resume a completed one) are the everyday mis-clicks."
   api-explorer:
     weight: 0.05
     flows: []
@@ -22,6 +26,9 @@ flows:
   enqueue-task:
     invariants: [task-completes-once, dedup-id-enforced, queue-concurrency-capped]
     citation: "README.md:78-79 (tasks complete exactly-once, results collected without resubmit); dedup at tests/test_queue.py:1863-1898 and _sys_db.py:783-791 (unique (queue_name, deduplication_id) -> DBOSQueueDeduplicatedError); the queue's concurrency cap is enforced at _sys_db.py:3877-3899 (global = count PENDING then dispatch the remainder; worker = in-memory per-process running count) and the vendor asserts it holds under recovery at tests/test_queue.py:1289-1353."
+  management:
+    invariants: [illegal-transition-errors-documented]
+    citation: "The management verbs are contracted to raise TYPED, documented errors on a wrong-state target — the sibling read verbs raise DBOSNonExistentWorkflowError for an unknown id (_client.py:520-523, handle.get_result :123/:147; the class is dbos/_error.py:116). A management verb that leaks a raw internal Exception instead is an undocumented-error contract breach the caller cannot branch on."
 events:
   crash-restart:
     amplification: 25
@@ -46,8 +53,8 @@ modules:
   - {name: _error.py, covered-by: [enqueue-task, durable-workflow]}
   - {name: _schemas, covered-by: [durable-workflow, enqueue-task]}
   - {name: __init__.py, covered-by: [durable-workflow]}
-  - {name: _client.py, parked: "DBOSClient management flows (list/cancel/resume/fork) modeled in the next producer refresh (row 4)"}
-  - {name: _workflow_commands.py, parked: "cancel/resume/fork/gc/global-timeout flows — next refresh"}
+  - {name: _client.py, covered-by: [management]}
+  - {name: _workflow_commands.py, covered-by: [management]}
   - {name: _admin_server.py, parked: "admin HTTP surface — next refresh"}
   - {name: _scheduler.py, parked: "cron/schedule flow — next refresh"}
   - {name: _scheduler_decorator.py, parked: "cron/schedule flow — next refresh"}

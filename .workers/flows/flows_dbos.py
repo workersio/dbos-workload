@@ -152,6 +152,7 @@ STEP_RUNS = {}
 TASK_RUNS = {}
 
 from dbos import DBOS, Queue, SetWorkflowID, SetEnqueueOptions
+from dbos._error import DBOSNonExistentWorkflowError
 
 DBOS.destroy(destroy_registry=True)
 
@@ -299,6 +300,45 @@ def do_enqueue(req):
         },
     }
 
+def do_mgmt(req):
+    # Management-verb error contract: a verb on a wrong-state target must fail
+    # with a TYPED, documented error (DBOSNonExistentWorkflowError), never a raw
+    # internal Exception and never a silent success. The server (which holds the
+    # DBOS exception classes) classifies; the flow judges the contract.
+    op = req["op"]
+    nonce = req["nonce"]
+    if op == "resume_terminal":
+        wfid = "mgmt-rt-" + nonce
+        with SetWorkflowID(wfid):
+            wio_durable_workflow(wfid, 1)  # run to SUCCESS
+        try:
+            DBOS.resume_workflow(wfid)  # resume a completed workflow -> guarded no-op
+            return {"op": op, "raised": None, "documented": True, "silent": False}
+        except Exception as e:
+            return {"op": op, "raised": type(e).__name__,
+                    "documented": isinstance(e, DBOSNonExistentWorkflowError), "silent": False}
+    if op == "cancel_cancelled":
+        wfid = "mgmt-cc-" + nonce
+        with SetWorkflowID(wfid):
+            wio_durable_workflow(wfid, 1)
+        try:
+            DBOS.cancel_workflow(wfid)
+            DBOS.cancel_workflow(wfid)  # cancel again -> idempotent no-op
+            return {"op": op, "raised": None, "documented": True, "silent": False}
+        except Exception as e:
+            return {"op": op, "raised": type(e).__name__,
+                    "documented": isinstance(e, DBOSNonExistentWorkflowError), "silent": False}
+    if op == "fork_missing":
+        missing = "nonexistent-" + nonce
+        try:
+            DBOS.fork_workflow(missing, 1)  # fork an id that was never created
+            return {"op": op, "raised": None, "documented": False, "silent": True}
+        except Exception as e:
+            return {"op": op, "raised": type(e).__name__,
+                    "documented": isinstance(e, DBOSNonExistentWorkflowError), "silent": False}
+    return {"op": op, "error": "unknown mgmt op " + str(op)}
+
+
 def do_caprace(req):
     # Two-executor concurrency-cap-under-recovery probe. THIS process is executor
     # A (DBOS__VMID=wioA). Fill the cap with n blocked cap_wf, then spawn executor
@@ -429,6 +469,8 @@ def handle(req):
             facts = do_enqueue(req)
         elif cmd == "caprace":
             facts = do_caprace(req)
+        elif cmd == "mgmt":
+            facts = do_mgmt(req)
         else:
             facts = {"error": "unknown cmd " + str(cmd)}
     except Exception as e:
@@ -763,9 +805,41 @@ class EnqueueTaskFlow:
         ctx.step("done")
 
 
+class ManagementFlow:
+    key = "management"
+    invariants = ("illegal-transition-errors-documented",)
+    # All ops declare NO documented exception class here: the flow itself decides
+    # (from the server's classification) whether the outcome was contract-clean and
+    # raises an undocumented marker only on a breach — so any raise = a red.
+    documented: dict = {"resume-terminal": (), "cancel-cancelled": (), "fork-missing": ()}
+    bounds: dict = {}
+
+    def run(self, ctx):
+        sut = ctx.sut
+        nonce = f"{ctx.actor_id}-{sut.seed}-{ctx.rng.randrange(1_000_000_000)}"
+        ops = (
+            ("resume_terminal", "resume-terminal"),   # green control: guarded no-op
+            ("cancel_cancelled", "cancel-cancelled"),  # green control: idempotent
+            ("fork_missing", "fork-missing"),          # the probe: wrong-error red
+        )
+        for op, label in ops:
+            ctx.step(label)
+            facts = sut.request({"cmd": "mgmt", "op": op, "nonce": f"{nonce}-{op}"})
+            with ctx.errors.expect(label):
+                # The verb must fail with a DOCUMENTED (typed) error — never a
+                # silent success, never a raw internal Exception.
+                if facts.get("silent"):
+                    raise AssertionError(f"{label}: silent success — the illegal transition was accepted")
+                if facts.get("raised") is not None and not facts.get("documented"):
+                    raise RuntimeError(f"{label}: undocumented error {facts.get('raised')!r} "
+                                       f"(expected DBOSNonExistentWorkflowError)")
+        ctx.step("done")
+
+
 FLOWS = {
     "durable-workflow": DurableWorkflowFlow,
     "enqueue-task": EnqueueTaskFlow,
+    "management": ManagementFlow,
 }
 
 
