@@ -236,3 +236,39 @@ a true stop. Held pending direction.
   findings/fork-nonexistent-raw-exception.md (status held; replay nd7cr1kb...; redproof
   01KXAWNRK248Y3J8V0C2BMS39Y). This proves the full producer->executor->RED->finding pipeline
   end-to-end on the box (the stated next milestone). check.py --status = row 1.
+- 2026-07-12T13:30Z e14 producer WAVE-2 MODEL EXPANSION kickoff (row-4 refresh, Viswa-directed): row 1
+  is only CURRENT-model-exhausted, not north-star done — ~25 modules parked, and the scouts flagged the
+  less-hardened surface as where DBOS bugs live. Expanding into SINGLE-PROCESS parked flow families
+  (cross-executor class stays parked — grandchild-import platform limit, product task filed). Launched
+  4 parallel candidate-scouts (cheap source-probe + vendor-test-check discipline, single-process only,
+  find reachable weight>=2 reds or refute with the guard/vendor test): (1) scheduler/cron
+  (_scheduler.py/_croniter.py — per-tick exactly-once, missed-tick catchup, cron correctness);
+  (2) client management ops beyond the fork finding (fork-replay correctness, gc-of-live, list
+  pagination, cancel->resume round-trip); (3) debouncer (coalescing/last-wins/durability) + datasource
+  decorator (transaction OAOO/rollback); (4) notifications recv/timeout/ordering/event-durability
+  journey (NOT OAOO, already refuted). Next: synthesize -> strategy-critic on the refresh -> model
+  refresh for confirmed reds -> build with red-proof. Skip refuted.
+- 2026-07-12T14:00Z e14 WAVE-2 scout synthesis (4 parallel scouts, all single-process, vendor-test
+  discipline). REACHABLE REDS: (A) gc-dangling-child -> stranded parent [weight 2, availability,
+  DETERMINISTIC]: garbage_collect (_sys_db.py:4414-4424, _app_db.py:186-256) guards only a row's OWN
+  status (PENDING/ENQUEUED/DELAYED), not inbound references; a terminal child aged past the gc cutoff
+  is deleted while a PENDING parent holds its child_workflow_id in operation_outputs, so on parent
+  recovery await_workflow_result (_sys_db.py:1604-1609, unbounded while-True poll) gets NoResult
+  forever -> strand. Vendor gc test (test_workflow_management.py:1017-1148) uses INDEPENDENT siblings,
+  never a parent/child graph -> real coverage hole. Oracle: parent acked to resume->SUCCESS; after
+  gc+restart+bounded-wait it's still PENDING -> acked_lost/stranded. CRUX to verify: await on a DELETED
+  child = hang (strand) vs raise (different bug). (B) notifications non-FIFO [weight 3, correctness,
+  PROBABILISTIC on our Postgres]: notifications is the ONLY ordered-delivery table lacking a monotonic
+  tiebreak (streams have offset, operation_outputs have function_id); created_at_epoch_ms is txn-scoped
+  (identical under send_bulk one-txn insert), PK gen_random_uuid() random, consume ORDER BY
+  created_at_epoch_ms ASC LIMIT 1 with NO secondary sort (_sys_db.py:3007-3010) -> tie broken by
+  heap/index order; vendor's own test_dbos.py:1170 asserts FIFO 'a-b-c' the schema doesn't guarantee.
+  Repro depends on heap-order luck on single Postgres (green-trivial risk). REFUTED/HARDENED: scheduler
+  (exactly-once per deterministic sched-<name>-<isotime> id + dedup, catchup via automatic_backfill,
+  croniter DST/tz all vendor-tested; only */n-seconds wrapper firing untested = likely-green gap);
+  debouncer (coalescing/last-wins/atomic-checkpoint all vendor-tested); datasource-OAOO/rollback (OAOO
+  atomic + vendor-tested; rollback-on-error an untested-but-likely-green gap, needs datasource fixture
+  infra); notifications timeout(durable absolute deadline)/events(atomic+durable)/edges(FK->
+  DBOSNonExistentWorkflowError, recv-outside-wf raises) all refuted. Build order: gc-strand first
+  (deterministic weight-2), notifications-FIFO second (weight-3 but needs a deterministic repro
+  strategy). Next: strategy-critic on both before build.

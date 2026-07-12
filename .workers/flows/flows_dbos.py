@@ -176,6 +176,24 @@ def wio_task_step(label):
 @DBOS.workflow()
 def wio_task(label):
     return wio_task_step(label)
+
+@DBOS.step()
+def wio_gc_child_step(cid):
+    return cid + ":childok"
+
+@DBOS.workflow()
+def wio_gc_child(cid):
+    return wio_gc_child_step(cid)
+
+@DBOS.workflow()
+def wio_gc_parent(pid, cid):
+    # A parent that calls a child workflow: the child_workflow_id is recorded in
+    # the parent's operation_outputs, and on replay the parent re-awaits the
+    # child's status row (get_result never short-circuits on the recorded result;
+    # _core.py:169-173 + _sys_db.py:2519 "no corresponding check").
+    with SetWorkflowID(cid):
+        h = DBOS.start_workflow(wio_gc_child, cid)
+    return "parent:" + str(h.get_result())
 """ % (CAP_N, CAP_GATE)) + CAP_DEFS + r'''
 config = {
     "name": "wioapp",
@@ -339,6 +357,81 @@ def do_mgmt(req):
     return {"op": op, "error": "unknown mgmt op " + str(op)}
 
 
+def force_pending(wfids):
+    # The crash: a parent that died mid-flight is PENDING with the child call
+    # already recorded. Force ONLY the given rows to PENDING (leave the child
+    # SUCCESS), the vendor-injection way.
+    import sqlalchemy as sa
+    from dbos._schemas.system_database import SystemSchema
+    T = SystemSchema.workflow_status
+    with inst._sys_db.engine.begin() as c:
+        c.execute(sa.update(T).values({"status": "PENDING"})
+                  .where(T.c.workflow_uuid.in_(wfids)))
+
+
+def _run_gc(cutoff_ms):
+    # Retention sweep. gc deletes every terminal row with created_at < cutoff; its
+    # guard is the row's OWN status only (_sys_db.py:4415-4425), so a PENDING
+    # parent is protected but a referenced SUCCESS child is not. This is the exact
+    # entrypoint the vendor's own gc test uses (tests/test_workflow_management.py:1054).
+    from dbos._workflow_commands import garbage_collect as _gc
+    _gc(inst, cutoff_epoch_timestamp_ms=cutoff_ms, rows_threshold=None)
+
+
+def _graph_recover(pid, cid, do_gc, wait_s):
+    # Build a parent->child graph to SUCCESS, crash the parent (force PENDING),
+    # optionally retention-gc the aged child, then recover and observe the parent.
+    with SetWorkflowID(pid):
+        wio_gc_parent(pid, cid)
+    force_pending([pid])
+    gone = False
+    if do_gc:
+        _run_gc(int(time.time() * 1000) + 1000)
+        gone = DBOS.get_workflow_status(cid) is None
+    DBOS._recover_pending_workflows()  # async dispatch; returns immediately
+    wait_terminal([pid], deadline_s=wait_s)  # bounded — a strand never terminalizes
+    st = DBOS.get_workflow_status(pid)
+    return (st.status if st else None), gone
+
+
+def do_gcstrand(req):
+    # gc-dangling-child: garbage_collect deletes a terminal child a still-PENDING
+    # parent references; on recovery the parent re-awaits the deleted child's status
+    # row (unbounded while-True poll, _sys_db.py:1604-1609) -> stranded PENDING.
+    # A no-gc control proves recovery of a graph normally works (green), so the
+    # oracle discriminates rather than always-reds.
+    nonce = req["nonce"]
+    wait_s = req.get("wait_s", 8.0)
+
+    cpid, ccid = "gcp-ctl-" + nonce, "gcc-ctl-" + nonce
+    control_after, _ = _graph_recover(cpid, ccid, do_gc=False, wait_s=wait_s)
+    control_result = None
+    try:
+        if control_after == "SUCCESS":
+            control_result = DBOS.retrieve_workflow(cpid).get_result(polling_interval_sec=0.05)
+    except Exception:
+        pass
+
+    spid, scid = "gcp-str-" + nonce, "gcc-str-" + nonce
+    strand_after, child_gone = _graph_recover(spid, scid, do_gc=True, wait_s=wait_s)
+    # Cleanup: re-materialize the deleted child so the stranded recovery thread
+    # drains instead of hot-polling until SUT teardown (observation already taken).
+    try:
+        with SetWorkflowID(scid):
+            wio_gc_child(scid)
+    except Exception:
+        pass
+
+    return {
+        "control_after": control_after,
+        "control_result": control_result,
+        "control_expected": "parent:" + ccid + ":childok",
+        "strand_after": strand_after,
+        "child_gone": child_gone,
+        "strand_expected": "parent:" + scid + ":childok",
+    }
+
+
 def do_caprace(req):
     # Two-executor concurrency-cap-under-recovery probe. THIS process is executor
     # A (DBOS__VMID=wioA). Fill the cap with n blocked cap_wf, then spawn executor
@@ -471,6 +564,8 @@ def handle(req):
             facts = do_caprace(req)
         elif cmd == "mgmt":
             facts = do_mgmt(req)
+        elif cmd == "gcstrand":
+            facts = do_gcstrand(req)
         else:
             facts = {"error": "unknown cmd " + str(cmd)}
     except Exception as e:
@@ -586,6 +681,7 @@ class DbosSUT:
         self.crash_armed = False
         self.faildeath_armed = False
         self.cap_result = None
+        self.gc_result = None
 
         self._resp: dict = {}
         self._events: dict = {}
@@ -836,10 +932,51 @@ class ManagementFlow:
         ctx.step("done")
 
 
+class WorkflowGraphFlow:
+    key = "workflow-graph"
+    invariants = ("graph-survives-retention-gc",)
+    documented: dict = {}
+    bounds: dict = {}
+
+    def run(self, ctx):
+        sut = ctx.sut
+        # The retention-gc + crash + recovery is a whole-scenario world event: run
+        # it ONCE per SUT (each strand leaves a hung recovery thread) and reuse the
+        # facts for the actor's later ops.
+        facts = getattr(sut, "gc_result", None)
+        if facts is None:
+            ctx.step("build-graphs")
+            nonce = f"{ctx.actor_id}-{sut.seed}-{ctx.rng.randrange(1_000_000_000)}"
+            facts = sut.request({"cmd": "gcstrand", "nonce": nonce}, timeout=900)
+            sut.gc_result = facts
+
+        # GREEN control: a crash-recovered parent/child graph (NO gc) must reach
+        # SUCCESS — proves graph recovery works and the oracle is not always-red.
+        ce = facts.get("control_expected")
+        ctx.ledger.acked("graph-result", "control", ce)
+        ctx.step("recover-control")
+        ca = facts.get("control_after")
+        ctx.ledger.observe(
+            "graph-result", "control",
+            value=(facts.get("control_result") if ca == "SUCCESS" else None),
+            present=(ca == "SUCCESS"),
+        )
+
+        # STRAND probe: the same graph, but a retention gc deleted the aged child.
+        # The parent was acked durable; still PENDING after gc+recover => stranded
+        # (acked_lost, availability).
+        ctx.ledger.acked("graph-result", "strand", facts.get("strand_expected"))
+        ctx.step("recover-after-gc")
+        sa_ = facts.get("strand_after")
+        ctx.ledger.observe("graph-result", "strand", value=sa_, present=(sa_ == "SUCCESS"))
+        ctx.step("done")
+
+
 FLOWS = {
     "durable-workflow": DurableWorkflowFlow,
     "enqueue-task": EnqueueTaskFlow,
     "management": ManagementFlow,
+    "workflow-graph": WorkflowGraphFlow,
 }
 
 

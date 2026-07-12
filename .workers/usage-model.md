@@ -13,8 +13,8 @@ personas:
     citation: "README.md:78-79 'you can enqueue a task ... one of your processes will pick it up ... it guarantees that tasks complete, and that their callers get their results without needing to resubmit them, even if your application is interrupted.'"
   ops-operator:
     weight: 0.10
-    flows: [management]
-    citation: "The operator/control-plane surface — DBOSClient and the DBOS.cancel_workflow / resume_workflow / fork_workflow management verbs (_dbos.py:1895/2069/2229, _client.py, _workflow_commands.py). A real operator inspects and steers stuck or misfired workflows from a dashboard or the admin API; wrong-state verbs (fork a missing id, resume a completed one) are the everyday mis-clicks."
+    flows: [management, workflow-graph]
+    citation: "The operator/control-plane surface — DBOSClient and the DBOS.cancel_workflow / resume_workflow / fork_workflow management verbs (_dbos.py:1895/2069/2229, _client.py, _workflow_commands.py). A real operator inspects and steers stuck or misfired workflows from a dashboard or the admin API; wrong-state verbs (fork a missing id, resume a completed one) are the everyday mis-clicks. Also runs retention garbage-collection (DBOS.garbage_collect) to bound system-db growth — a routine admin job that must not strand live work."
   api-explorer:
     weight: 0.05
     flows: []
@@ -29,6 +29,9 @@ flows:
   management:
     invariants: [illegal-transition-errors-documented]
     citation: "The management verbs are contracted to raise TYPED, documented errors on a wrong-state target — the sibling read verbs raise DBOSNonExistentWorkflowError for an unknown id (_client.py:520-523, handle.get_result :123/:147; the class is dbos/_error.py:116). A management verb that leaks a raw internal Exception instead is an undocumented-error contract breach the caller cannot branch on."
+  workflow-graph:
+    invariants: [graph-survives-retention-gc]
+    citation: "A parent workflow that calls a child records the child_workflow_id in its operation_outputs and re-awaits the child's status row on recovery — get_result on the polling handle never short-circuits on the recorded result (_core.py:169-173; record_get_result has 'no corresponding check', _sys_db.py:2519) and check_workflow_result returns NoResult for a not-found row (_sys_db.py:1583/1602), so await_workflow_result loops forever (_sys_db.py:1604-1609). Retention garbage_collect guards only a row's OWN status (_sys_db.py:4415-4425), not inbound child references, so it can delete an aged terminal child a still-PENDING parent depends on. The vendor gc test (tests/test_workflow_management.py:1017-1076) sweeps only independent siblings — a parent/child graph under gc is untested. Contract: a routine retention gc must never strand live work (it deletes the child but not the parent it references)."
 events:
   crash-restart:
     amplification: 25
@@ -41,9 +44,9 @@ modules:
   - {name: _dbos.py, covered-by: [durable-workflow, enqueue-task]}
   - {name: _sys_db.py, covered-by: [durable-workflow, enqueue-task]}
   - {name: _sys_db_postgres.py, covered-by: [durable-workflow, enqueue-task]}
-  - {name: _app_db.py, covered-by: [durable-workflow]}
+  - {name: _app_db.py, covered-by: [durable-workflow, workflow-graph]}
   - {name: _queue.py, covered-by: [enqueue-task]}
-  - {name: _recovery.py, covered-by: [durable-workflow]}
+  - {name: _recovery.py, covered-by: [durable-workflow, workflow-graph]}
   - {name: _registrations.py, covered-by: [durable-workflow, enqueue-task]}
   - {name: _context.py, covered-by: [durable-workflow, enqueue-task]}
   - {name: _serialization.py, covered-by: [durable-workflow, enqueue-task]}
@@ -54,16 +57,16 @@ modules:
   - {name: _schemas, covered-by: [durable-workflow, enqueue-task]}
   - {name: __init__.py, covered-by: [durable-workflow]}
   - {name: _client.py, covered-by: [management]}
-  - {name: _workflow_commands.py, covered-by: [management]}
+  - {name: _workflow_commands.py, covered-by: [management, workflow-graph]}
   - {name: _admin_server.py, parked: "admin HTTP surface — next refresh"}
-  - {name: _scheduler.py, parked: "cron/schedule flow — next refresh"}
-  - {name: _scheduler_decorator.py, parked: "cron/schedule flow — next refresh"}
-  - {name: _croniter.py, parked: "cron parsing — next refresh with the schedule flow"}
+  - {name: _scheduler.py, parked: "PROBED e14 (wave-2 scout) — hardened. Per-tick exactly-once via deterministic sched-<name>-<isotime> id + dedup, missed-tick automatic_backfill, croniter DST/timezone all vendor-tested. Only untested edge = */n-seconds cadence firing (second_at_beginning wrapper), weight 2 low-confidence, likely-green. No reachable red."}
+  - {name: _scheduler_decorator.py, parked: "PROBED e14 — hardened with _scheduler.py (deterministic per-tick workflow id + dedup)."}
+  - {name: _croniter.py, parked: "PROBED e14 — croniter DST/timezone/backfill parsing vendor-tested; no reachable red."}
   - {name: _kafka.py, parked: "kafka consumer flow — next refresh; needs the kafka-broker recipe"}
   - {name: _kafka_message.py, parked: "kafka consumer flow — next refresh"}
-  - {name: _debouncer.py, parked: "debounce flow — next refresh"}
-  - {name: _datasource.py, parked: "external datasource decorator — next refresh"}
-  - {name: _datasource_postgres.py, parked: "external datasource decorator — next refresh"}
+  - {name: _debouncer.py, parked: "PROBED e14 (wave-2 scout) — hardened. Coalescing / last-wins / atomic-checkpoint all vendor-tested. No reachable red."}
+  - {name: _datasource.py, parked: "PROBED e14 — mostly hardened. OAOO atomic + vendor-tested. Only untested gap = rollback-on-error external-write (weight 3 IF broken) but session.begin() rolls back on exception so likely-green; needs a datasource fixture. Deprioritized vs the gc strand."}
+  - {name: _datasource_postgres.py, parked: "PROBED e14 — see _datasource.py; likely-green rollback gap, deprioritized."}
   - {name: _datasource_sqlite.py, parked: "sqlite datasource; postgres runner only"}
   - {name: _sys_db_sqlite.py, parked: "sqlite system-db backend; postgres runner only"}
   - {name: _roles.py, parked: "RBAC/authz flow — next refresh"}
