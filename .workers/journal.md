@@ -272,3 +272,21 @@ a true stop. Held pending direction.
   DBOSNonExistentWorkflowError, recv-outside-wf raises) all refuted. Build order: gc-strand first
   (deterministic weight-2), notifications-FIFO second (weight-3 but needs a deterministic repro
   strategy). Next: strategy-critic on both before build.
+- 2026-07-12T15:30Z e15 WAVE-2 BUILD (producer+executor). Strategy-critic(opus) ruled: gc-dangling-child
+  BUILD (crux settled at source — get_result re-awaits, never short-circuits on recorded result:
+  record_get_result "no corresponding check" _sys_db.py:2519, _core.py:169-173; check_workflow_result
+  returns NoResult for not-found row :1583/1602; await_workflow_result loops :1604-1609; child_workflow_id
+  has NO FK _schemas/system_database.py:171; gc guards own status only :4415-4425). notifications-FIFO
+  DE-RISK→SHELVED (naive send_bulk->recv == passing vendor test test_dbos.py:1150-1170; heap-luck-green on
+  single Postgres; only reachable via heap-disorder injection or CockroachDB). Built flow `workflow-graph`
+  (invariant graph-survives-retention-gc) + scenario workflow-graph-retention-gc (L3, cast ops-operator,
+  depth 3): control arm (crash+recover, no gc -> green) + strand arm (crash+gc+recover -> PENDING strand).
+  Driver do_gcstrand: parent calls child (SetWorkflowID), child SUCCESS, force parent PENDING, gc(cutoff=now)
+  deletes aged child, _recover_pending_workflows (async) re-awaits deleted child -> strand; bounded
+  wait_terminal so the oracle never hangs; cleanup re-materializes child to drain the hung recovery thread.
+  Ledger oracle: acked graph-result parent durable; strand observed PENDING -> acked_lost (weight 2,
+  availability). Model refresh: workflow-graph added to FLOWS + ops-operator flows + _workflow_commands/
+  _app_db/_recovery coverage; scheduler/debouncer/datasource parked-with-reason (probed hardened e14).
+  check.py OK (9 scenarios, 4 flows). AST-validated driver; local run blocked (venv cloud-only). Committed
+  4e0171e, pushed, prepare requested. NEXT: cloud redproof (ORACLE_SELFTEST PASS) then real depth-3;
+  crystallize if strand reds; PAGE Viswa on the red.
