@@ -180,3 +180,31 @@ a true stop. Held pending direction.
   decremented on exit), NOT a row count (DB settles back to N) — scout's explicit warning. Next:
   strategy-critic on the two-process harness design, then executor build (two live DBOS processes on one
   Postgres + a DB-backed concurrency gauge + a cross-process barrier holding N bodies live during recovery).
+- 2026-07-12T11:30Z e11 executor enqueue-cap-under-recovery (queue concurrency-cap under false-death
+  recovery) — driver BUILT and correct, but BLOCKED on a harness limitation; finding stays
+  source-confirmed / execution-blocked (NOT crystallized — no reproduced red, integrity intact).
+  Built a full two-live-executor harness in flows_dbos.py: executor A fills a Queue(concurrency=4)
+  with 4 cap_wf bodies that block on a Postgres advisory-lock gate (A holds EXCLUSIVE, each body waits
+  on SHARED — a real PG-side barrier immune to the virtual clock); a cluster-wide gauge table
+  (wio_cap_gauge cur/mx) self-records the peak concurrency; A spawns executor B (DBOS__VMID=wioB) which
+  recovers wioA's live queued rows so B's poller re-dispatches them past the cap. Debugged SIX real
+  integration issues to get here: (1) Queue() built before DBOS() hangs boot -> move after; (2) bare
+  postgresql:// gauge url defaulted to absent psycopg2 -> psycopg3; (3) A gave up before B booted
+  because its waits used virtual sleeps that fast-forward past B's ~20s real boot -> DB-state
+  coordination via a coord table; (4) unthrottled spins = millions of real DB reads -> pg_sleep
+  (server-side, real time) throttling; (5) the actor plan runs the flow 5x with the event arming at
+  op4 -> cache the race result once per SUT; (6) un-drained B pipe filled -> drain thread. FINAL
+  BLOCKER (unfixable from the driver): executor B, a second full Python/DBOS process spawned by the
+  driver, HANGS at `import dbos` under the deterministic sandbox. faulthandler dump: frozen in plain
+  stdlib import (dis -> opcode.py, importlib._bootstrap), prints B0/B1/B2 then never returns; not
+  env-based (stripping LD_PRELOAD/FAKETIME* -> stripped:[] and still hangs). The sandbox traps a
+  driver-spawned grandchild at import. Single-process repro is impossible BY CONSTRUCTION (vendor test
+  test_queue.py:1350 shows the in-memory ActiveWorkflowById guard blocks re-run within one process;
+  the breach requires a second guard-less executor). Scenario marked BLOCKED with the full note;
+  friction row added (harness needs multi-live-executor support — blocks the whole cross-executor
+  finding class where DBOS is weakest). The finding is well-evidenced (vendor's own test asserts the
+  cap holds under recovery; the cross-process gap is real in source) and should be revisited if/when
+  the harness gains multi-SUT support — mirrors how lib fix 8952058 unblocked the enqueue rungs.
+  DISPATCHER: with this blocked, remaining above-threshold candidates (52 notifications-OAOO, 44
+  illegal-state-transitions) are single-process and buildable; 58/70 (queue×recovery) share the
+  now-blocked cross-executor limitation. Model: 2 flows floored (durable/enqueue L0/L1/L3 green).

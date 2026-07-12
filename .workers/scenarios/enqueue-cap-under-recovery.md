@@ -5,8 +5,8 @@ cast: {task-producer: 1}
 flows: [enqueue-task]
 event: {key: false-death-recovery, at: crashclock}
 depth: 5
-status: ready
-result: null
+status: blocked
+result: blocked
 replay: null
 redproof: null
 invariants: [queue-concurrency-capped]
@@ -82,3 +82,29 @@ First run is `--redproof` (plants the `denied_happened`, must PASS). No-event
 siblings are enqueue-solo/contention/crash-recovery (all green). If this reds, it
 crystallizes as an availability finding (weight 2): the queue concurrency cap the
 user set to protect a scarce resource is silently exceeded during recovery.
+
+## BLOCKED (e11, harness limitation — NOT a DBOS fact)
+
+The full two-executor driver is built and correct (executor A fills the cap,
+holds a Postgres advisory-lock gate, spawns executor B; A/B coordinate purely via
+DB state so the differing clocks don't matter). But **executor B — a second full
+Python/DBOS process spawned by the flow driver — cannot boot under the
+deterministic-time sandbox.** A `faulthandler` stack dump shows B hanging inside
+plain stdlib import (`import dbos` → `dis` → executing `opcode.py`, frozen in
+`importlib._bootstrap`); B prints `B0/B1/B2` then never returns from the import.
+It is not env-based (stripping `LD_PRELOAD`/`FAKETIME*` changed nothing —
+`stripped: []`), so the sandbox traps/stalls a driver-spawned grandchild process
+at import. Single-process reproduction is impossible by construction: the vendor's
+own `test_queue_concurrency_under_recovery` shows the in-memory `ActiveWorkflowById`
+guard blocks re-dispatch within ONE process — the breach *requires* a second live
+executor without that guard.
+
+STATUS OF THE FINDING: **source-confirmed, execution-blocked.** The invariant is
+the vendor's own (`tests/test_queue.py:1350` asserts the running count stays at the
+cap after recovering a LIVE executor); the cross-process gap is real in the source
+(cap = count-PENDING-then-dispatch `_sys_db.py:3877-3899`; worker count is a
+per-process in-memory set; `clear_queue_assignment` re-enqueues live rows with no
+liveness/CAS check). It is NOT crystallized (no reproduced red → integrity intact).
+Unblock path: a harness change letting a flow driver run a second live executor
+process under the sandbox (mirrors how the interleave step-timeout lib fix 8952058
+unblocked the enqueue rungs). See ../../friction.md.
