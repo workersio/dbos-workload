@@ -622,6 +622,15 @@ class EnqueueTaskFlow:
         ctx.step("fill-cap")
         facts = sut.request({"cmd": "caprace", "n": n, "nonce": nonce}, timeout=1500)
         gauge_max = facts.get("gauge_max")
+        try:
+            import json as _json
+            print("WIODIAG caprace " + _json.dumps({
+                "cap": n, "gauge_max": gauge_max, "cur_full": facts.get("cur_full"),
+                "b_exit": facts.get("b_exit"), "states": facts.get("states"),
+                "b_err": (facts.get("b_err") or "")[-200:],
+            }), flush=True)
+        except Exception:
+            pass
 
         # The cap forbids more than n concurrent bodies. If the peak exceeded n,
         # the denied thing happened -> RED.
