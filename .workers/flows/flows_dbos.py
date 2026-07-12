@@ -94,20 +94,29 @@ def _coord_setup():
     with _geng.begin() as c:
         c.exec_driver_sql(
             "CREATE TABLE IF NOT EXISTS wio_cap_coord "
-            "(id int primary key, b_ready bool, b_done bool, b_recovered int, b_saw_max int)")
+            "(id int primary key, b_ready bool, b_recovered int, b_stage text)")
 
 def _coord_reset():
     with _geng.begin() as c:
         c.exec_driver_sql(
-            "INSERT INTO wio_cap_coord(id,b_ready,b_done,b_recovered,b_saw_max) "
-            "VALUES(1,false,false,0,0) ON CONFLICT(id) DO UPDATE SET "
-            "b_ready=false,b_done=false,b_recovered=0,b_saw_max=0")
+            "INSERT INTO wio_cap_coord(id,b_ready,b_recovered,b_stage) "
+            "VALUES(1,false,0,'') ON CONFLICT(id) DO UPDATE SET "
+            "b_ready=false,b_recovered=0,b_stage=''")
 
 def _coord_read():
     with _geng.begin() as c:
         row = c.exec_driver_sql(
-            "SELECT b_ready,b_done,b_recovered,b_saw_max FROM wio_cap_coord WHERE id=1").fetchone()
-    return row if row else (False, False, 0, 0)
+            "SELECT b_ready,b_recovered,b_stage FROM wio_cap_coord WHERE id=1").fetchone()
+    return row if row else (False, 0, "")
+
+def _coord_stage(msg):
+    # Durable boot-progress trail for executor B — survives even if B is SIGKILLed.
+    try:
+        with _geng.begin() as c:
+            c.exec_driver_sql("UPDATE wio_cap_coord SET b_stage=%s WHERE id=1",
+                              (str(msg)[:120],))
+    except Exception:
+        pass
 
 @DBOS.step()
 def cap_block(token):
@@ -330,9 +339,10 @@ def do_caprace(req):
         )
         # Wait for B to boot (~20s real) + recover: it sets b_ready. Throttled with
         # pg_sleep so the wait tracks real time, not the virtual clock.
-        b_ready, b_rec = False, 0
+        b_ready, b_rec, b_stage = False, 0, ""
         for _ in range(400):  # ~120s real max
-            br, _bd, brec, _bs = _coord_read()
+            br, brec, bstg = _coord_read()
+            b_stage = bstg
             if br:
                 b_ready, b_rec = True, brec
                 break
@@ -381,7 +391,7 @@ def do_caprace(req):
     except Exception:
         pass
     return {"cap": n, "gauge_max": gauge_max, "cur_full": cur_full,
-            "b_ready": bool(b_ready), "b_recovered": b_rec,
+            "b_ready": bool(b_ready), "b_recovered": b_rec, "b_stage": b_stage,
             "states": states, "b_exit": bproc.poll(), "b_err": b_err}
 
 
@@ -441,6 +451,7 @@ from dbos import DBOS, Queue, SetWorkflowID
 
 DBOS.destroy(destroy_registry=True)
 """ % (CAP_N, CAP_GATE)) + CAP_DEFS + r'''
+_coord_stage("preboot")
 config = {
     "name": "wioapp",
     "application_database_url": CFG["app_url"],
@@ -448,21 +459,27 @@ config = {
     "enable_otlp": False,
     "notification_listener_polling_interval_sec": 0.02,
 }
-inst = DBOS(config=config)
-cap_queue = Queue("wio_cap_q", concurrency=CAP_N, worker_concurrency=CAP_N,
-                  polling_interval_sec=0.05)
-DBOS.launch()
+try:
+    inst = DBOS(config=config)
+    cap_queue = Queue("wio_cap_q", concurrency=CAP_N, worker_concurrency=CAP_N,
+                      polling_interval_sec=0.05)
+    _coord_stage("instantiated")
+    DBOS.launch()
+    _coord_stage("launched")
+except Exception as e:
+    _coord_stage("boot-error: %r" % (e,))
+    sys.stderr.write("B boot error: %r\n" % (e,)); sys.stderr.flush()
+    raise
 _nrec = -1
 try:
     _rec = DBOS._recover_pending_workflows(["wioA"])
     _nrec = len(_rec)
-    sys.stderr.write("B recovered %d\n" % (_nrec,))
-    sys.stderr.flush()
+    sys.stderr.write("B recovered %d\n" % (_nrec,)); sys.stderr.flush()
 except Exception as e:
-    sys.stderr.write("B recover error: %r\n" % (e,))
-    sys.stderr.flush()
+    _coord_stage("recover-error: %r" % (e,))
+    sys.stderr.write("B recover error: %r\n" % (e,)); sys.stderr.flush()
 with _geng.begin() as _c:
-    _c.exec_driver_sql("UPDATE wio_cap_coord SET b_ready=true, b_recovered=%d WHERE id=1" % _nrec)
+    _c.exec_driver_sql("UPDATE wio_cap_coord SET b_ready=true, b_recovered=%d, b_stage='ready' WHERE id=1" % _nrec)
 # B's queue poller now re-dispatches the recovered rows on its own background
 # thread; each runs cap_block on B and blocks at the shared gate (held by A),
 # bumping the cluster gauge whose mx column self-records the peak. B just idles
@@ -490,6 +507,7 @@ class DbosSUT:
         self.maint_url = f"postgresql://postgres:{pw}@localhost:5432/postgres"
         self.crash_armed = False
         self.faildeath_armed = False
+        self.cap_result = None
 
         self._resp: dict = {}
         self._events: dict = {}
@@ -675,22 +693,29 @@ class EnqueueTaskFlow:
         # cluster-wide gauge peak, expressed as a DENY (the cap forbids > N).
         sut = ctx.sut
         n = self.N
-        nonce = f"{ctx.actor_id}-{sut.seed}-{ctx.rng.randrange(1_000_000_000)}"
         qkey = "wio_cap_q"
 
-        ctx.step("fill-cap")
-        facts = sut.request({"cmd": "caprace", "n": n, "nonce": nonce}, timeout=1500)
+        # The actor's plan runs this flow several times, but the two-executor race
+        # is a whole-scenario operation — run it ONCE per SUT and reuse the result
+        # for the later ops (re-running would spawn executor B repeatedly and blow
+        # the sim budget).
+        facts = getattr(sut, "cap_result", None)
+        if facts is None:
+            ctx.step("fill-cap")
+            nonce = f"{ctx.actor_id}-{sut.seed}-{ctx.rng.randrange(1_000_000_000)}"
+            facts = sut.request({"cmd": "caprace", "n": n, "nonce": nonce}, timeout=1500)
+            sut.cap_result = facts
+            try:
+                import json as _json
+                print("WIODIAG caprace " + _json.dumps({
+                    "cap": n, "gauge_max": facts.get("gauge_max"),
+                    "cur_full": facts.get("cur_full"), "b_ready": facts.get("b_ready"),
+                    "b_recovered": facts.get("b_recovered"), "b_stage": facts.get("b_stage"),
+                    "b_exit": facts.get("b_exit"), "b_err": (facts.get("b_err") or "")[-300:],
+                }), flush=True)
+            except Exception:
+                pass
         gauge_max = facts.get("gauge_max")
-        try:
-            import json as _json
-            print("WIODIAG caprace " + _json.dumps({
-                "cap": n, "gauge_max": gauge_max, "cur_full": facts.get("cur_full"),
-                "b_ready": facts.get("b_ready"), "b_recovered": facts.get("b_recovered"),
-                "b_exit": facts.get("b_exit"),
-                "b_err": (facts.get("b_err") or "")[-300:],
-            }), flush=True)
-        except Exception:
-            pass
 
         # The cap forbids more than n concurrent bodies. If the peak exceeded n,
         # the denied thing happened -> RED.
