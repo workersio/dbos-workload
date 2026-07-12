@@ -99,3 +99,11 @@ dispatcher: check.py --status = row 1 (model flows done, no findings, modules co
 BUT candidates.md has 6 rows above threshold 40 (top: concurrent-recovery race 74) and
 staleness (no red in 6 episodes) — per the skill these are row-4 refresh territory, not
 a true stop. Held pending direction.
+- 2026-07-12T07:34Z e7 executor stream-write-dup-on-retry L0 -> RED (run 01KXAHB5E71FVTQKJMSMDH2QRH seed 1).
+  FIRST REAL FINDING: DBOS.write_stream from a @DBOS.step is NOT exactly-once across a step
+  retry — write_stream_from_step (_sys_db.py:4229) has no OAOO record (unlike
+  write_stream_from_workflow :4265), so a retried step duplicates the streamed value
+  (vals ["v","v"], count 2, wf SUCCESS). Crystallized findings/stream-write-dup-on-retry-1.md
+  (correctness, held). Already minimal (1 actor/1 flow/depth 1/seed 1). Running test-reviewer
+  gate + redproof. Overnight: bg poll wedged 7.5h on empty EID (friction+bounded runner added);
+  conductor landed interleave step-timeout lib fix 8952058 -> enqueue rungs now unblocked.

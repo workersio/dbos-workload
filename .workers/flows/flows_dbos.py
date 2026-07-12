@@ -476,7 +476,6 @@ class StreamWriteFlow:
         # stream. One logical write -> the stream must contain it exactly once.
         ctx.ledger.acked("stream-count", wfid, 1)
         count = facts.get("count", 0)
-        print("WIODIAG stream " + json.dumps(facts)[:400], flush=True)  # TEMP
         # present when the value is there at all; the acked value (1) vs observed
         # count (2 on a duplicate) mismatch is the acked_mutated red.
         ctx.ledger.observe("stream-count", wfid, value=count, present=(count >= 1))

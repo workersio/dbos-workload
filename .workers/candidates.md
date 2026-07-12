@@ -1,13 +1,14 @@
 <!-- emit:begin -->
 ## Snapshot (generated -- do not edit inside the emit markers)
 
-status: planned=0 ready=0 running=0 done=4
-result: null=0 green=4 finding=0 void=0 blocked=2
+status: planned=0 ready=0 running=0 done=5
+result: null=0 green=4 finding=1 void=0 blocked=2
 
 | flow \ rung | L0 | L1 | L2 | L3 | L4 |
 | --- | --- | --- | --- | --- | --- |
 | durable-workflow | 1 | 1 | 0 | 1 | 0 |
 | enqueue-task | 1 | 1 | 0 | 1 | 0 |
+| stream-write | 1 | 0 | 0 | 0 | 0 |
 <!-- emit:end -->
 
 threshold: 40

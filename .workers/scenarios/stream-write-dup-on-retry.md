@@ -4,9 +4,9 @@ rung: L0
 cast: {stream-user: 1}
 flows: [stream-write]
 depth: 15
-status: ready
-result: null
-replay: null
+status: done
+result: finding
+replay: {run: 01KXAHB5E71FVTQKJMSMDH2QRH, seed: 1}
 redproof: null
 invariants: [stream-write-once]
 story: >-
