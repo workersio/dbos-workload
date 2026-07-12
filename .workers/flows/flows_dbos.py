@@ -331,15 +331,22 @@ def do_caprace(req):
             _psleep(0.1)
 
         # Spawn executor B: a second live DBOS on the SAME databases, VMID=wioB.
-        # Discard B's stdout/stderr: DBOS boot is very chatty, and an un-drained
-        # PIPE fills its 64KB buffer and blocks B mid-boot. B reports progress and
-        # errors durably via the coord table's b_stage, not its pipes.
         bproc = subprocess.Popen(
             [sys.executable, "-c", os.environ["WIO_EXEC_B"]],
             env={**os.environ, "DBOS__VMID": "wioB"},
-            stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
             text=True, bufsize=1,
         )
+        # Drain B's stderr continuously (an un-drained PIPE would fill and block B)
+        # while still capturing it for diagnosis.
+        _berr = []
+        def _drain():
+            try:
+                for _ln in bproc.stderr:
+                    _berr.append(_ln)
+            except Exception:
+                pass
+        threading.Thread(target=_drain, daemon=True).start()
         # Wait for B to boot (~20s real) + recover: it sets b_ready. Throttled with
         # pg_sleep so the wait tracks real time, not the virtual clock.
         b_ready, b_rec, b_stage = False, 0, ""
@@ -387,12 +394,7 @@ def do_caprace(req):
     for w in wfids:
         st = DBOS.get_workflow_status(w)
         states[w] = st.status if st else None
-    b_err = ""
-    try:
-        if bproc.poll() is not None and bproc.poll() != 0:
-            b_err = (bproc.stderr.read() or "")[-600:]
-    except Exception:
-        pass
+    b_err = ("".join(_berr))[-900:]
     return {"cap": n, "gauge_max": gauge_max, "cur_full": cur_full,
             "b_ready": bool(b_ready), "b_recovered": b_rec, "b_stage": b_stage,
             "states": states, "b_exit": bproc.poll(), "b_err": b_err}
@@ -714,7 +716,7 @@ class EnqueueTaskFlow:
                     "cap": n, "gauge_max": facts.get("gauge_max"),
                     "cur_full": facts.get("cur_full"), "b_ready": facts.get("b_ready"),
                     "b_recovered": facts.get("b_recovered"), "b_stage": facts.get("b_stage"),
-                    "b_exit": facts.get("b_exit"), "b_err": (facts.get("b_err") or "")[-300:],
+                    "b_exit": facts.get("b_exit"), "b_err": (facts.get("b_err") or "")[-700:],
                 }), flush=True)
             except Exception:
                 pass
