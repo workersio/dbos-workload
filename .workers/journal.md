@@ -208,3 +208,18 @@ a true stop. Held pending direction.
   DISPATCHER: with this blocked, remaining above-threshold candidates (52 notifications-OAOO, 44
   illegal-state-transitions) are single-process and buildable; 58/70 (queue×recovery) share the
   now-blocked cross-executor limitation. Model: 2 flows floored (durable/enqueue L0/L1/L3 green).
+- 2026-07-12T12:15Z e12 producer/probe single-process candidates 52 (notifications-OAOO) + 44
+  (illegal-state-transitions) scouted before any build. 52 REFUTED: send/recv/set_event/get_event
+  are OAOO-guarded and vendor-tested (send_bulk = _check_operation_execution_txn + message_uuid PK
+  on_conflict_do_nothing + step record in one txn, dedup asserted tests/test_dbos.py:1031-1050; recv
+  re-reads its recorded result; set_event last-write-wins upsert); only un-OAOO path (send from a bare
+  step) = same at-least-once precedent already refuted for write_stream. 44 mostly hardened but ONE
+  reachable red: DBOS.fork_workflow(nonexistent_id,1) raises raw Exception("Workflow ... not found")
+  (_sys_db.py:1180), NOT the typed DBOSNonExistentWorkflowError its siblings raise (retrieve_workflow
+  _client.py:520-523); no pre-existence check, no test. Weight 1 (wrong-error / error-contract). Other
+  44 sub-cases REFUTED (resume-terminal guarded notin_[SUCCESS,ERROR]; cancel idempotent; fork
+  out-of-range/from-PENDING vendor-tested/tolerant tests/test_async.py:957-990). Cross-executor
+  candidates 58/70 marked BLOCKED-CLASS (same harness multi-executor limit as e11). Dispatcher: the
+  top remaining reachable red is the weight-1 fork-nonexistent; pursuing it because it crystallizes the
+  fleet's FIRST finding and proves the full producer->executor->RED->finding pipeline end-to-end (a
+  stated milestone), and it maps onto the existing error-contract oracle. Building management flow next.
