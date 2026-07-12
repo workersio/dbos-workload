@@ -133,3 +133,27 @@ a true stop. Held pending direction.
   Model now at floor for both core flows (L0/L1/L3 all green; L2 interaction + L4 horizon open).
   Next: row-4 producer refresh for the concurrent-recovery race (candidate 74) — needs a
   concurrent-recovery event + a second live-executor persona (cross-process, not interleave).
+- 2026-07-12T09:00Z e9 producer/investigation candidate-74 (concurrent-recovery race on durable-workflow)
+  REFUTED before building any harness — the strategy-critic gate + a cheap in-repo source probe
+  killed it. Pipeline: scout (mapped the recovery-ownership mechanism: recovery is executor_id-
+  partitioned so the race is only reachable via cross-executor recovery — admin /dbos-workflow-
+  recovery or _recover_pending_workflows([other_id]); the recovery upsert _sys_db.py:693-766 has no
+  CAS) -> strategy-critic returned REFRAME (my 3-clause invariant was guarded-by-construction: PK
+  tautology on operation_outputs, SUCCESS-guarded DLQ, OAOO convergence; pointed at one surviving
+  seam: update_workflow_outcome _sys_db.py:862-891 is last-writer-wins guarding only CANCELLED, so
+  a loser could in theory clobber SUCCESS->ERROR) with a PROBE GATE: check whether a racing-step
+  DBOSWorkflowConflictIDError escapes or is swallowed BEFORE building a two-process Postgres harness.
+  Probe (read _core.py:1784-1877 intercept/record, _outcome.py Immediate._intercept, _sys_db.py:2417-
+  2496 record_operation_result, _core.py:560-614 persist): the conflict ESCAPES the step layer (no
+  retry on a plain @DBOS.step, _intercept doesn't re-run on exception) BUT is caught at the WORKFLOW
+  finalizer _core.py:594-602 ("Aborting duplicate execution" -> await_workflow_result -> returns the
+  WINNER's SUCCESS result). DBOS deliberately CONVERGES; the loser never terminalizes ERROR, so the
+  SUCCESS-clobber seam is unreachable. Verdict: DROP. Only residual = at-least-once step side effects
+  (documented, weight 0-1, #767-shape). Model unchanged (no persona/event/flow added — nothing to
+  falsify). candidates row 74 marked REFUTED with the mechanism. GATE VALUE: the probe read ~5
+  functions and avoided building a two-live-executor cross-process Postgres harness for a non-bug.
+  SIGNAL: both crystallization attempts so far (write_stream e7, concurrent-recovery e9) refuted at
+  the source — DBOS's durability CORE (steps/recovery OAOO) is well-hardened; remaining candidates
+  (70 queue×cancel×restart, 58 dedup×concurrency, 52 notifications-OAOO, 44 illegal-transitions)
+  target the LESS-hardened management/notifications surface. Adopting "cheap source probe before
+  harness build" as the standing discipline for every candidate.
