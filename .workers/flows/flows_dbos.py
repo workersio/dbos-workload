@@ -405,7 +405,10 @@ def do_caprace(req):
     for w in wfids:
         st = DBOS.get_workflow_status(w)
         states[w] = st.status if st else None
-    b_err = ("".join(_berr))[-900:]
+    _bfull = "".join(_berr)
+    # Prefer the faulthandler dump head (innermost stuck frame) if present.
+    _fh = _bfull.find("most recent call first")
+    b_err = _bfull[_fh:_fh + 900] if _fh != -1 else _bfull[-900:]
     return {"cap": n, "gauge_max": gauge_max, "cur_full": cur_full,
             "b_ready": bool(b_ready), "b_recovered": b_rec, "b_stage": b_stage,
             "stripped": sorted(_stripped.keys()),
@@ -460,6 +463,8 @@ except Exception:
 EXEC_B_SRC = ("""
 import sys
 print("B0-start", flush=True)
+import faulthandler
+faulthandler.dump_traceback_later(30, exit=False)  # dump B's stack if it hangs
 import json, os, time
 print("B1-stdlib", flush=True)
 
@@ -743,7 +748,7 @@ class EnqueueTaskFlow:
                     "cur_full": facts.get("cur_full"), "b_ready": facts.get("b_ready"),
                     "b_recovered": facts.get("b_recovered"), "b_stage": facts.get("b_stage"),
                     "stripped": facts.get("stripped"),
-                    "b_exit": facts.get("b_exit"), "b_err": (facts.get("b_err") or "")[-500:],
+                    "b_exit": facts.get("b_exit"), "b_err": (facts.get("b_err") or "")[:700],
                 }), flush=True)
             except Exception:
                 pass
