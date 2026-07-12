@@ -331,10 +331,13 @@ def do_caprace(req):
             _psleep(0.1)
 
         # Spawn executor B: a second live DBOS on the SAME databases, VMID=wioB.
+        # Discard B's stdout/stderr: DBOS boot is very chatty, and an un-drained
+        # PIPE fills its 64KB buffer and blocks B mid-boot. B reports progress and
+        # errors durably via the coord table's b_stage, not its pipes.
         bproc = subprocess.Popen(
             [sys.executable, "-c", os.environ["WIO_EXEC_B"]],
             env={**os.environ, "DBOS__VMID": "wioB"},
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             text=True, bufsize=1,
         )
         # Wait for B to boot (~20s real) + recover: it sets b_ready. Throttled with
