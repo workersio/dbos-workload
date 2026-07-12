@@ -121,3 +121,15 @@ a true stop. Held pending direction.
   gap" into a flow invariant WITHOUT running strategy-critic; strategy-critic must run on every model
   refresh, and a scout gap must be checked against the vendor's own tests before it becomes an invariant.
   Back to true row-1/row-4 posture: 4 GREEN scenarios (red-proofed), 0 findings, model at floor.
+- 2026-07-12T08:15Z e8 executor UNBLOCKED enqueue L1+L3 on the lib-fixed image (8952058:
+  interleave step-timeout inherits WIO_WATCHDOG_S instead of a hardcoded 30s).
+  enqueue-contention L1 (3 producers, depth 30): 30/30 succeeded, 0 violations, all three
+  producer ledgers witnessed -> GREEN. replay nd7ej3vc..., redproof 01KXAMMG66KF8QDS5DBB7NSRN4.
+  enqueue-crash-recovery L3 (2 producers + crash-restart, depth 50): 50/50 succeeded, 0
+  violations, crash fired at swept op-points (op1/op4/...) so recovery was genuinely
+  exercised -> GREEN. replay nd7eztwd..., redproof 01KXANDK4BTE27QK0KEEY2GEP4. The e6 BLOCKED
+  reds were confirmed a harness artifact, not a DBOS bug: concurrent enqueue and queue-path
+  crash-recovery both hold exactly-once + dedup. check.py OK (6 scenarios, 2 flows, blocked=0).
+  Model now at floor for both core flows (L0/L1/L3 all green; L2 interaction + L4 horizon open).
+  Next: row-4 producer refresh for the concurrent-recovery race (candidate 74) — needs a
+  concurrent-recovery event + a second live-executor persona (cross-process, not interleave).
