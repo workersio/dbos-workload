@@ -46,7 +46,6 @@ import json, os, sys, threading, time
 CFG = json.loads(os.environ["WIO_CFG"])
 STEP_RUNS = {}
 TASK_RUNS = {}
-STREAM_ATTEMPTS = {}
 
 from dbos import DBOS, Queue, SetWorkflowID, SetEnqueueOptions
 
@@ -72,25 +71,6 @@ def wio_task_step(label):
 @DBOS.workflow()
 def wio_task(label):
     return wio_task_step(label)
-
-# -- stream-write: a workflow whose step writes to a stream then fails once and
-#    retries. write_stream from a @DBOS.step uses write_stream_from_step, which
-#    (unlike the from_workflow path) has no OAOO record, so the retried body may
-#    append the value a second time. stream-write-once => exactly one occurrence.
-@DBOS.step(retries_allowed=True, max_attempts=3, interval_seconds=0.01)
-def wio_stream_writer(wfid, val):
-    DBOS.write_stream("s", val)
-    n = STREAM_ATTEMPTS.get(wfid, 0)
-    STREAM_ATTEMPTS[wfid] = n + 1
-    if n < 1:
-        raise Exception("transient-fail-attempt-0")
-    return "ok"
-
-@DBOS.workflow()
-def wio_stream_wf(wfid, val):
-    wio_stream_writer(wfid, val)
-    DBOS.close_stream("s")
-    return "done"
 
 config = {
     "name": "wioapp",
@@ -213,27 +193,6 @@ def do_enqueue(req):
         },
     }
 
-def do_stream(req):
-    wfid = req["wfid"]
-    val = req["val"]
-    STREAM_ATTEMPTS.pop(wfid, None)
-    wf_ok = True
-    try:
-        with SetWorkflowID(wfid):
-            wio_stream_wf(wfid, val)
-    except Exception as e:
-        wf_ok = repr(e)
-    vals = []
-    try:
-        for v in DBOS.read_stream(wfid, "s"):
-            vals.append(v)
-    except Exception:
-        pass
-    st = DBOS.get_workflow_status(wfid)
-    return {"wfid": wfid, "count": vals.count(val), "total": len(vals),
-            "vals": vals[:8], "attempts": STREAM_ATTEMPTS.get(wfid, 0),
-            "status": (st.status if st else None), "wf_ok": wf_ok}
-
 def handle(req):
     rid = req.get("id")
     try:
@@ -246,8 +205,6 @@ def handle(req):
             facts = do_durable(req)
         elif cmd == "enqueue":
             facts = do_enqueue(req)
-        elif cmd == "stream":
-            facts = do_stream(req)
         else:
             facts = {"error": "unknown cmd " + str(cmd)}
     except Exception as e:
@@ -460,32 +417,9 @@ class EnqueueTaskFlow:
         ctx.step("done")
 
 
-class StreamWriteFlow:
-    key = "stream-write"
-    invariants = ("stream-write-once",)
-    documented: dict = {}
-    bounds: dict = {}
-
-    def run(self, ctx):
-        sut = ctx.sut
-        wfid = f"stream-{ctx.actor_id}-{sut.seed}-{ctx.rng.randrange(1_000_000_000)}"
-        val = "v"
-        ctx.step("write")
-        facts = sut.request({"cmd": "stream", "wfid": wfid, "val": val})
-        # The product promises each written value appears exactly once in the
-        # stream. One logical write -> the stream must contain it exactly once.
-        ctx.ledger.acked("stream-count", wfid, 1)
-        count = facts.get("count", 0)
-        # present when the value is there at all; the acked value (1) vs observed
-        # count (2 on a duplicate) mismatch is the acked_mutated red.
-        ctx.ledger.observe("stream-count", wfid, value=count, present=(count >= 1))
-        ctx.step("done")
-
-
 FLOWS = {
     "durable-workflow": DurableWorkflowFlow,
     "enqueue-task": EnqueueTaskFlow,
-    "stream-write": StreamWriteFlow,
 }
 
 

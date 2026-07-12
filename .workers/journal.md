@@ -107,3 +107,17 @@ a true stop. Held pending direction.
   (correctness, held). Already minimal (1 actor/1 flow/depth 1/seed 1). Running test-reviewer
   gate + redproof. Overnight: bg poll wedged 7.5h on empty EID (friction+bounded runner added);
   conductor landed interleave step-timeout lib fix 8952058 -> enqueue rungs now unblocked.
+- 2026-07-12T08:00Z e7-REVERT executor test-reviewer gate returned REMOVE on stream-write-dup-on-retry.
+  THE "FIRST REAL FINDING" WAS A FALSE POSITIVE — reverted in full. write_stream_from_step having
+  no OAOO record is INTENDED: DBOS steps are at-least-once for their body side effects, and the
+  vendor's own tests/test_streaming.py:604-659 (test_stream_write_from_step) asserts one stream
+  value PER ATTEMPT ("each failure should still write to the stream"). My stream-write-once
+  invariant fabricated a contract the product never makes; read_stream promises order+termination,
+  not dedup. Removed: findings/stream-write-dup-on-retry-1.md, scenarios/stream-write-dup-on-retry.md,
+  the stream-write flow + stream-user persona from usage-model.md, and all StreamWriteFlow/wio_stream_*/
+  do_stream driver code. candidates.md row 48 marked REFUTED. check.py = CHECK OK (6 scenarios, 2 flows).
+  GATE WORKED: test-reviewer caught this BEFORE it became a dossier to the DBOS maintainer — a bad
+  report there costs credibility + the warm intro. Lesson: the e7 refresh promoted a scout "suspected
+  gap" into a flow invariant WITHOUT running strategy-critic; strategy-critic must run on every model
+  refresh, and a scout gap must be checked against the vendor's own tests before it becomes an invariant.
+  Back to true row-1/row-4 posture: 4 GREEN scenarios (red-proofed), 0 findings, model at floor.

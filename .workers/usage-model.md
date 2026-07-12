@@ -4,17 +4,13 @@ runner: .workers/run-with-postgres.sh .workers/python-runtime.sh
 actor-model: process-parallel
 personas:
   workflow-runner:
-    weight: 0.50
+    weight: 0.55
     flows: [durable-workflow]
     citation: "README.md:41-42 'DBOS workflows make your program durable by checkpointing its state in Postgres. If your program ever fails, when it restarts all your workflows will automatically resume from the last completed step.' — the headline quickstart flow every user writes first."
   task-producer:
-    weight: 0.30
+    weight: 0.40
     flows: [enqueue-task]
     citation: "README.md:78-79 'you can enqueue a task ... one of your processes will pick it up ... it guarantees that tasks complete, and that their callers get their results without needing to resubmit them, even if your application is interrupted.'"
-  stream-user:
-    weight: 0.15
-    flows: [stream-write]
-    citation: "README.md:206 'emit events from your workflow to send progress updates to external clients'; DBOS.write_stream/read_stream (_dbos.py:3150-3202) deliver each value once in order."
   api-explorer:
     weight: 0.05
     flows: []
@@ -26,17 +22,14 @@ flows:
   enqueue-task:
     invariants: [task-completes-once, dedup-id-enforced]
     citation: "README.md:78-79 (tasks complete exactly-once, results collected without resubmit); dedup at tests/test_queue.py:1863-1898 and _sys_db.py:783-791 (unique (queue_name, deduplication_id) -> DBOSQueueDeduplicatedError)."
-  stream-write:
-    invariants: [stream-write-once]
-    citation: "DBOS.write_stream/read_stream deliver each written value once, in order (_dbos.py:3185-3202; tests/test_streaming.py:33-40). NOTE the suspected gap: write_stream_from_step (_sys_db.py:4229) commits each write in its own txn with NO OAOO record, unlike write_stream_from_workflow (_sys_db.py:4265, @db_retry + _check_operation_execution_txn) — so a RETRIED step that writes to a stream may append the value twice."
 events:
   crash-restart:
     amplification: 25
     citation: "README.md:42 'if your program ever fails, when it restarts all your workflows will automatically resume' — the product's core promise. Simulated with the vendor's own injection: force in-flight rows to status PENDING then DBOS._recover_pending_workflows() (tests/test_dbos.py:425-433)."
 modules:
-  - {name: _core.py, covered-by: [durable-workflow, enqueue-task, stream-write]}
-  - {name: _dbos.py, covered-by: [durable-workflow, enqueue-task, stream-write]}
-  - {name: _sys_db.py, covered-by: [durable-workflow, enqueue-task, stream-write]}
+  - {name: _core.py, covered-by: [durable-workflow, enqueue-task]}
+  - {name: _dbos.py, covered-by: [durable-workflow, enqueue-task]}
+  - {name: _sys_db.py, covered-by: [durable-workflow, enqueue-task]}
   - {name: _sys_db_postgres.py, covered-by: [durable-workflow, enqueue-task]}
   - {name: _app_db.py, covered-by: [durable-workflow]}
   - {name: _queue.py, covered-by: [enqueue-task]}
@@ -89,26 +82,30 @@ lean on that promise and amplifies the one event that tests it — a crash.
 
 ## Personas
 
-- **workflow-runner** (0.50) — the application developer's process running
+- **workflow-runner** (0.55) — the application developer's process running
   `@DBOS.workflow()`/`@DBOS.step()` code. Every README example and the starter
   template is this actor. Drives `durable-workflow`.
-- **task-producer** (0.30) — a process that enqueues background tasks on a DBOS
+- **task-producer** (0.40) — a process that enqueues background tasks on a DBOS
   `Queue` and collects their results (README.md:73-105). Drives `enqueue-task`.
-- **stream-user** (0.15) — a workflow that streams progress updates out to an
-  external reader via `DBOS.write_stream`/`read_stream` (added by the e7 row-4
-  refresh to probe the `write_stream_from_step` OAOO gap). Drives `stream-write`.
 - **api-explorer** (0.05) — the built-in rarity sampler over the cold verb
   inventory (management/notifications/scheduler surfaces parked below); feeds the
   api-floor candidate source until those flows are modeled.
 
-Deliberately left out of the first model (added by the next row-4 refresh, in
+Deliberately left out of the first model (added by later row-4 refreshes, in
 priority order): the **ops-operator** persona (DBOSClient cancel/resume/fork —
 _client.py, _workflow_commands.py), durable **notifications** (send/recv,
 set/get_event — _core.py), the **scheduler** (cron), **kafka**, **streaming**,
 and **debounce** flows. The strongest untested interactions the scouts flagged
-live there (queue × cancel × restart; concurrent multi-executor recovery;
-`write_stream_from_step` OAOO gap) — this model floors the two core flows first
-so those interaction reds are attributable.
+live there (queue × cancel × restart; concurrent multi-executor recovery) — this
+model floors the two core flows first so those interaction reds are attributable.
+
+REFUTED (e7): the scout-flagged `write_stream_from_step` "OAOO gap" is NOT a bug —
+DBOS steps are at-least-once for their body side effects, and the vendor's own
+`tests/test_streaming.py:604-659` (`test_stream_write_from_step`) asserts one
+stream value PER ATTEMPT ("each failure should still write to the stream"). A
+`stream-write-once` invariant contradicts documented, tested behavior. Lesson: a
+scout's "suspected gap" must be checked against the vendor's own tests before it
+becomes a flow invariant — the strategy-critic gate should run on every refresh.
 
 ## Flows and what they promise
 
