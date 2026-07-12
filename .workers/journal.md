@@ -304,3 +304,18 @@ a true stop. Held pending direction.
   reds). Model state: workflow-graph flow done@L3; parked modules now honestly probed (scheduler/debouncer/
   datasource hardened e14, notifications-FIFO shelved heap-luck). Next dispatcher cycle: model-refresh
   status — remaining reachable single-process surface is thin; cross-executor class still platform-blocked.
+- 2026-07-12T16:40Z e17 WAVE-3 SCOUT + STOP. Kafka consumer scout (opus, read-only): PARK. All 3
+  durability contracts REFUTED — deterministic offset-keyed workflow id (_kafka.py:103-104) → OAOO
+  dedup; durable enqueue before store_offsets, auto-store forced off (:50-56/109-115) → at-least-once
+  never commit-before-durable; per-topic Queue(concurrency=1) for in_order (:134). Maintainer freshly
+  hardened the loss window in #733/#738 (9ed4fec, 2026-06) with test_kafka_no_offset_loss_on_relaunch
+  parking in the exact crash window. No single-process seam (live broker needed) → worst ROI. Async
+  forms LIKELY-HARDENED (share the checkpoint path; test_kafka_async covers them). Parked _kafka* with
+  reason. DISPATCHER STOP (row 1, model-exhausted): 4 flows all at ladder target or parked-with-reason;
+  no ready scenarios; NO un-crystallized red (gc-strand crystallized e16); check.py clean incl G8 (zero
+  orphans — every module covered or parked-with-reason). Top remaining candidates are all
+  BLOCKED-CLASS (cross-executor, platform-gated Q-005), REFUTED, or SHELVED (notifications-FIFO
+  heap-dependent). Reachable single-process surface EXHAUSTED. Session tally: 2 crystallized findings
+  (fork-nonexistent w1, gc-strand w2), 6+ candidates refuted at source, 1 shelved, cross-executor class
+  platform-blocked. Next moves all require Viswa's steer (file the 2 held findings) or the multi-executor
+  platform lever (Q-005). FLEET-STOP: model-exhausted.

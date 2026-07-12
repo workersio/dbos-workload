@@ -62,8 +62,8 @@ modules:
   - {name: _scheduler.py, parked: "PROBED e14 (wave-2 scout) — hardened. Per-tick exactly-once via deterministic sched-<name>-<isotime> id + dedup, missed-tick automatic_backfill, croniter DST/timezone all vendor-tested. Only untested edge = */n-seconds cadence firing (second_at_beginning wrapper), weight 2 low-confidence, likely-green. No reachable red."}
   - {name: _scheduler_decorator.py, parked: "PROBED e14 — hardened with _scheduler.py (deterministic per-tick workflow id + dedup)."}
   - {name: _croniter.py, parked: "PROBED e14 — croniter DST/timezone/backfill parsing vendor-tested; no reachable red."}
-  - {name: _kafka.py, parked: "kafka consumer flow — next refresh; needs the kafka-broker recipe"}
-  - {name: _kafka_message.py, parked: "kafka consumer flow — next refresh"}
+  - {name: _kafka.py, parked: "PROBED e17 (wave-3 scout) — FRESHLY HARDENED. All 3 durability contracts refuted: deterministic offset-keyed workflow id kafka-unique-id-{topic}-{partition}-{group}-{offset} (:103-104) → OAOO dedup; durable enqueue BEFORE store_offsets with auto-store forced off (:50-56/109-115) → at-least-once never commit-before-durable; per-topic Queue(concurrency=1) for in_order (:134). Maintainer closed the loss window in #733/#738 (9ed4fec, 2026-06) with a targeted relaunch regression test test_kafka_no_offset_loss_on_relaunch. No single-process seam (needs a live broker). No reachable red — worst ROI class."}
+  - {name: _kafka_message.py, parked: "PROBED e17 — hardened with _kafka.py; async consumer covered by test_kafka_async."}
   - {name: _debouncer.py, parked: "PROBED e14 (wave-2 scout) — hardened. Coalescing / last-wins / atomic-checkpoint all vendor-tested. No reachable red."}
   - {name: _datasource.py, parked: "PROBED e14 — mostly hardened. OAOO atomic + vendor-tested. Only untested gap = rollback-on-error external-write (weight 3 IF broken) but session.begin() rolls back on exception so likely-green; needs a datasource fixture. Deprioritized vs the gc strand."}
   - {name: _datasource_postgres.py, parked: "PROBED e14 — see _datasource.py; likely-green rollback gap, deprioritized."}
